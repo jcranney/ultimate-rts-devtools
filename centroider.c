@@ -98,6 +98,9 @@ int main()
 											 // before catching that the semaphore
 											 // is up to date? (if that's how it
 											 // works)
+											 // Also, this seems to get stuck here
+											 // if it has been started before the
+											 // frames have started flowing.
 
 		// get middle row and write to vec
 		slope_vec[0].md[0].write = 1; // set this flag to 1 when writing data
@@ -106,7 +109,6 @@ int main()
 			for(int jj=0; jj<wfs_image[0].md[0].size[1]; jj++)
 			{
 				if (jj != 256) continue;
-				
 				slope_vec[0].array.F[ii] = wfs_image[0].array.F[jj*wfs_image[0].md[0].size[0]/2+ii];
 			}
 		}
