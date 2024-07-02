@@ -34,7 +34,7 @@
 
 int main()
 {
-	IMAGE *imarray;    // pointer to array of images
+	IMAGE imarray;    // pointer to array of images
 	int NBIMAGES = 1;  // can hold 1 image
 	long naxis;        // number of axis
 	uint8_t atype;     // data type
@@ -42,14 +42,6 @@ int main()
 	int shared;        // 1 if image in shared memory
 	int NBkw;          // number of keywords supported
 	int CBSize;          // number of keywords supported
-
-
-
-	
-
-	// allocate memory for array of images
-	imarray = (IMAGE*) malloc(sizeof(IMAGE)*NBIMAGES);
-
 	
 	// image will be 2D
 	naxis = 2;
@@ -75,7 +67,8 @@ int main()
 
 	
 	// create an image in shared memory
-	ImageStreamIO_createIm(&imarray[0], "lgswfs00", naxis, imsize, atype, shared, NBkw, CBSize);
+	ImageStreamIO_createIm(&imarray, "lgswfs00", naxis, imsize, atype, shared, NBkw, CBSize);
+    // imarray = stream_connect_create_2Df32("lgswfs00",512,512);
 
 	float angle; 
 	float r;
@@ -86,15 +79,12 @@ int main()
 	long dtus = 1000; // update every 1ms
 	float dangle = 0.02;
 	
-	int s;
-	int semval;
-
 	// writes a square in image
 	// square location rotates around center
 	angle = 0.0;
 	r = 100.0;
-	x0 = 0.5*imarray[0].md[0].size[0];
-	y0 = 0.5*imarray[0].md[0].size[1];
+	x0 = 0.5*imarray.md[0].size[0];
+	y0 = 0.5*imarray.md[0].size[1];
 	while (1)
 	{
         
@@ -102,45 +92,29 @@ int main()
 		xc = x0 + r*cos(angle);
 		yc = y0 + r*sin(angle);
 		
-		
-		imarray[0].md[0].write = 1; // set this flag to 1 when writing data
-		
-		for(ii=0; ii<imarray[0].md[0].size[0]; ii++)
-			for(jj=0; jj<imarray[0].md[0].size[1]; jj++)
+		for(ii=0; ii<imarray.md[0].size[0]; ii++)
+			for(jj=0; jj<imarray.md[0].size[1]; jj++)
 			{
 				x = 1.0*ii;
 				y = 1.0*jj;
 				float dx = x-xc;
 				float dy = y-yc;
 				
-				imarray[0].array.F[jj*imarray[0].md[0].size[0]+ii] = cos(0.03*dx)*cos(0.03*dy)*exp(-1.0e-4*(dx*dx+dy*dy));
-				
-				//if( (x-xc<squarerad) && (x-xc>-squarerad) && (y-yc<squarerad) && (y-yc>-squarerad))
-				//	imarray[0].array.F[jj*imarray[0].md[0].size[0]+ii] = 1.0;
-				//else
-				//	imarray[0].array.F[jj*imarray[0].md[0].size[0]+ii] = 0.0;
+				imarray.array.F[jj*imarray.md[0].size[0]+ii] = cos(0.03*dx)*cos(0.03*dy)*exp(-1.0e-4*(dx*dx+dy*dy));
 			}
 		
 		// POST ALL SEMAPHORES
-		ImageStreamIO_sempost(&imarray[0], -1);
-		
-		imarray[0].md[0].write = 0; // Done writing data
-		imarray[0].md[0].cnt0++;
-		imarray[0].md[0].cnt1++;
-		
+        ImageStreamIO_UpdateIm(&imarray);
 		
 		usleep(dtus);
 		angle += dangle;
 		if(angle > 2.0*3.141592)
 			angle -= 2.0*3.141592;
-		//printf("Wrote square at position xc = %16f  yc = %16f\n", xc, yc);
-		//fflush(stdout);
 	}
 	
 
 
 	free(imsize);
-	free(imarray);
 	
 	return 0;
 }

@@ -2,9 +2,10 @@
 
 # Define variables
 CC = gcc
-CFLAGS = -I/usr/local/include/ImageStreamIO
-LDFLAGS = -lm -lpthread
-LIB_SRC = /home/jcranney/isio/ImageStreamIO.c
+CFLAGS = -I/usr/local/include/ImageStreamIO -I/usr/local/milk-1.03.00/include
+
+LDFLAGS = -lm -lpthread -L/usr/local/milk-1.03.00/lib # -lCLIcore -lmilkCOREMODmemory
+LIB_SRC = /home/jcranney/isio/ImageStreamIO.c 
 
 # Default target
 all: centroider.o simulator.o

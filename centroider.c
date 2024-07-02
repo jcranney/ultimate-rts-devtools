@@ -93,14 +93,8 @@ int main()
 	// square location rotates around center
 	while (1)
 	{
-		ImageStreamIO_semwait(wfs_image, 0); // TODO: check with YON/OGU
-											 // This seems to run a few times
-											 // before catching that the semaphore
-											 // is up to date? (if that's how it
-											 // works)
-											 // Also, this seems to get stuck here
-											 // if it has been started before the
-											 // frames have started flowing.
+		int semindex = ImageStreamIO_getsemwaitindex(wfs_image, -1);
+		ImageStreamIO_semwait(wfs_image, semindex);
 
 		// get middle row and write to vec
 		slope_vec[0].md[0].write = 1; // set this flag to 1 when writing data
@@ -114,11 +108,7 @@ int main()
 		}
 		
 		// POST ALL SEMAPHORES
-		ImageStreamIO_sempost(&wfs_image[0], -1);
-		
-		slope_vec[0].md[0].write = 0; // Done writing data
-		slope_vec[0].md[0].cnt0++;
-		slope_vec[0].md[0].cnt1++;
+		ImageStreamIO_UpdateIm(slope_vec);
 	}
 	
 
