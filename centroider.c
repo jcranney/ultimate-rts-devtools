@@ -30,7 +30,7 @@
 #include "ImageStreamIO.h"
 
 // TODO: check YON/OGU when to define this (compile vs runtime?)
-const uint32_t N_SLOPE = 512;
+const uint32_t N_SLOPE = 256;
 
 int main()
 {
@@ -102,7 +102,7 @@ int main()
 		for(int ii=0; ii<wfs_image[0].md[0].size[0]; ii++) {
 			for(int jj=0; jj<wfs_image[0].md[0].size[1]; jj++)
 			{
-				if (jj != 256) continue;
+				if (jj != 128) continue;
 				slope_vec[0].array.F[ii] = wfs_image[0].array.F[jj*wfs_image[0].md[0].size[0]/2+ii];
 			}
 		}
