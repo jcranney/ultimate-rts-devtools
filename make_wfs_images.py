@@ -48,7 +48,9 @@ class PhaseScreen(BaseModel):
     def _covariance(self, x_in, y_in, x_out, y_out):
         rr = (x_out[:, None]-x_in[None, :])**2 + \
             (y_out[:, None]-y_in[None, :])**2
-        cov = aotools.phase_covariance(rr, self.r0, self.L0)*(0.5/(np.pi*2))**2        
+        cov = aotools.phase_covariance(
+            rr, self.r0, self.L0
+            )*(0.5/(np.pi*2))**2
         return cov
 
     def _factorh(self, symmetric_matrix):
@@ -91,7 +93,7 @@ class SHWFS(BaseModel):
             ]
         dft2 = np.kron(dft, dft)
         self.dft2 = dft2
-    
+
     def measure(self, phi):
         # phi in microns
         camp = pupil.astype(np.complex128) * \
@@ -101,9 +103,9 @@ class SHWFS(BaseModel):
             for i in range(self.nsubx):
                 camp_small = camp[j*self.subwidth:(j+1)*self.subwidth,
                                   i*self.subwidth:(i+1)*self.subwidth]
-                im_small = (np.abs(self.dft2 @ camp_small.flatten())**2)
+                im_s = (np.abs(self.dft2 @ camp_small.flatten())**2)
                 im[j*self.fovx:(j+1)*self.fovx,
-                    i*self.fovx:(i+1)*self.fovx] = im_small.reshape([self.fovx, self.fovx])
+                   i*self.fovx:(i+1)*self.fovx] = im_s.reshape([self.fovx]*2)
         return im
 
     @property
