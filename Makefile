@@ -8,10 +8,7 @@ LDFLAGS = -lm -lpthread -L/usr/local/milk-1.03.00/lib # -lCLIcore -lmilkCOREMODm
 LIB_SRC = /home/jcranney/isio/ImageStreamIO.c 
 
 # Default target
-all: centroider.o simulator.o
-
-simulator.o: simulator.c $(LIB_SRC)
-	$(CC) simulator.c $(LIB_SRC) -o simulator.o $(CFLAGS) $(LDFLAGS)
+all: centroider.o
 
 # Compile the program
 centroider.o: centroider.c $(LIB_SRC)
@@ -19,6 +16,6 @@ centroider.o: centroider.c $(LIB_SRC)
 
 # Clean up build files
 clean:
-	rm -f centroider.o simulator.o
+	rm -f *.o
 
 .PHONY: all clean
