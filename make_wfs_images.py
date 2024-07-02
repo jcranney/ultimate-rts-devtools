@@ -14,11 +14,38 @@ class PhaseScreen(BaseModel):
     wind: np.ndarray = np.r_[10, 20]  # [x,y] m/s
     ittime: float = 1/500  # seconds
     pixsize: float = None
-    thresh: float = 1e-6  # eigenval threshold
+    thresh: float = 1e-8  # eigenval threshold
     factor_xx: np.ndarray = None
     factor_vv: np.ndarray = None
-    state_matrix: np.ndarray = None
     x: np.ndarray = None
+
+    class StateMatrix:
+        def __init__(self, cov_yx, inv_factor_xx):
+            print("  initialising")
+            print("  einsumming")
+            self.ML = np.einsum("ij,jk->ik", cov_yx, inv_factor_xx)
+            print("  copying")
+            self.LT = inv_factor_xx.T.copy()
+            print("  building og A mat")
+            self.A = np.einsum("ij,jk->ik", self.ML, self.LT)
+            x = np.ones(self.A.shape[1])
+            self.espath = np.einsum_path(
+                "ij,jk,k->i",
+                self.ML,
+                self.LT,
+                x,
+                optimize="optimal"
+            )
+
+        def dot(self, x):
+            return np.einsum(
+                "ij,jk,k->i",
+                self.ML,
+                self.LT,
+                x,
+                optimize=self.espath[0])
+
+    state_matrix: StateMatrix = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -31,18 +58,25 @@ class PhaseScreen(BaseModel):
         # let sigma_xx -> covariance of phase with self
         # let sigma_yx -> covariance between phase and next phase
         # let sigma_vv -> covariance of driving noise with self
+        print("building first covmat")
         sigma_xx = self._covariance(
             xx, yy, xx, yy
         )
-        self.factor_xx, inv_xx = self._factorh(sigma_xx)
+        self.factor_xx, inv_factor_xx = self._factorh(sigma_xx)
 
-        sigma_yx = self._covariance(
+        print("building second covmat")
+        sigma_yx = self.laminar * self._covariance(
             xx+self.wind[0]*self.ittime, yy+self.wind[1]*self.ittime, xx, yy
         )
-        state_matrix = self.laminar*(sigma_yx @ inv_xx)
-        sigma_vv = sigma_xx - state_matrix @ sigma_xx @ state_matrix.T
+        print("about to build statematrix")
+        state_matrix = self.StateMatrix(sigma_yx, inv_factor_xx)
+        print("got it")
+        sigma_vv = sigma_xx - state_matrix.A @ sigma_xx @ state_matrix.A.T
+        print("did big MMMs")
         self.state_matrix = state_matrix
+        print("factorising sigma_vv")
         self.factor_vv, _ = self._factorh(sigma_vv)
+        print("nice, starting up")
         self.x = self.factor_xx @ np.random.randn(self.factor_xx.shape[1])
 
     def _covariance(self, x_in, y_in, x_out, y_out):
@@ -58,12 +92,12 @@ class PhaseScreen(BaseModel):
         vecs = vecs[:, vals > self.thresh]
         vals = vals[vals > self.thresh]
         factor = vecs @ np.diag(vals**0.5)
-        inv = vecs @ np.diag((1/vals)) @ vecs.T
-        return factor, inv
+        inv_factor = vecs @ np.diag((1/vals)**0.5)
+        return factor, inv_factor
 
     def step(self):
         v = np.random.randn(self.factor_vv.shape[1])
-        self.x = np.einsum("ij,j->i", self.state_matrix, self.x) + \
+        self.x = self.state_matrix.dot(self.x) + \
             np.einsum("ij,j->i", self.factor_vv, v)
 
     def get_phase(self):
