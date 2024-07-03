@@ -1,0 +1,4 @@
+numpy
+aotools
+pydantic
+tqdm

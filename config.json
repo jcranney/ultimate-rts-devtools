@@ -1,0 +1,11 @@
+{
+  "wfs_streams" : [
+   "lgswfs00",
+   "lgswfs01",
+   "lgswfs02",
+   "lgswfs03"
+  ],
+  "phi_streams" : [
+   "phi00"
+  ]
+}

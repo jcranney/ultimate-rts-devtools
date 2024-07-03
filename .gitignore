@@ -1,3 +1,5 @@
 .vscode/
 *.o
 *.npy
+__pycache__/
+*.log

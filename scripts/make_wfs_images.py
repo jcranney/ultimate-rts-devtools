@@ -2,6 +2,7 @@ import numpy as np
 import aotools
 from pydantic import BaseModel, ConfigDict
 from tqdm import tqdm
+import time
 
 
 class PhaseScreen(BaseModel):
@@ -14,12 +15,17 @@ class PhaseScreen(BaseModel):
     wind: np.ndarray = np.r_[10, 20]  # [x,y] m/s
     ittime: float = 1/500  # seconds
     pixsize: float = None
-    thresh: float = 1e-8  # eigenval threshold
+    #thresh: float = 1e-8  # eigenval threshold
+    thresh: float = 1e-9  # eigenval threshold
     factor_xx: np.ndarray = None
     factor_vv: np.ndarray = None
     x: np.ndarray = None
 
     class StateMatrix:
+        """Special class for the state matrix, since I realised it has some
+        really nice properties that allow us to do multiplication ~20x 
+        faster.
+        """
         def __init__(self, cov_yx, inv_factor_xx):
             print("  initialising")
             print("  einsumming")
@@ -30,7 +36,7 @@ class PhaseScreen(BaseModel):
             self.A = np.einsum("ij,jk->ik", self.ML, self.LT)
             x = np.ones(self.A.shape[1])
             self.espath = np.einsum_path(
-                "ij,jk,k->i",
+                "ij,jk,k...->i...",
                 self.ML,
                 self.LT,
                 x,
@@ -39,11 +45,30 @@ class PhaseScreen(BaseModel):
 
         def dot(self, x):
             return np.einsum(
-                "ij,jk,k->i",
+                "ij,jk,k...->i...",
                 self.ML,
                 self.LT,
                 x,
                 optimize=self.espath[0])
+        
+        @property
+        def shape(self):
+            return self.A.shape
+
+        def test_speed(self, ntests=100):
+            x = np.random.randn(self.shape[1],ntests)
+            es_path_original = np.einsum_path(
+                "ij,j...->i...", 
+                self.A, x, optimize="optimal")[0]
+            t1 = time.time()
+            self.dot(x)
+            t2 = time.time()
+            np.einsum(
+                "ij,j...->i...",
+                self.A, x, optimize=es_path_original)
+            t3 = time.time()
+            print(f"original: {(t3-t2)/ntests:0.3e}")
+            print(f"improved: {(t2-t1)/ntests:0.3e}")
 
     state_matrix: StateMatrix = None
 
@@ -71,7 +96,7 @@ class PhaseScreen(BaseModel):
         print("about to build statematrix")
         state_matrix = self.StateMatrix(sigma_yx, inv_factor_xx)
         print("got it")
-        sigma_vv = sigma_xx - state_matrix.A @ sigma_xx @ state_matrix.A.T
+        sigma_vv = sigma_xx - state_matrix.dot(state_matrix.dot(sigma_xx).T).T
         print("did big MMMs")
         self.state_matrix = state_matrix
         print("factorising sigma_vv")
@@ -89,16 +114,16 @@ class PhaseScreen(BaseModel):
 
     def _factorh(self, symmetric_matrix):
         vals, vecs = np.linalg.eigh(symmetric_matrix)
-        vecs = vecs[:, vals > self.thresh]
-        vals = vals[vals > self.thresh]
-        factor = vecs @ np.diag(vals**0.5)
-        inv_factor = vecs @ np.diag((1/vals)**0.5)
+        valid = vals > self.thresh
+        vecs = vecs[:, valid]
+        vals = vals[valid]
+        factor = vecs * (vals**0.5)[None,:]
+        inv_factor = vecs * ((1/vals)**0.5)[None,:]
         return factor, inv_factor
 
     def step(self):
         v = np.random.randn(self.factor_vv.shape[1])
-        self.x = self.state_matrix.dot(self.x) + \
-            np.einsum("ij,j->i", self.factor_vv, v)
+        self.x = self.state_matrix.dot(self.x) + self.factor_vv @ v
 
     def get_phase(self):
         phi = np.zeros(self.pupil.shape)
@@ -113,6 +138,8 @@ class SHWFS(BaseModel):
     fovx: int = 8  # pixels per fov width
     wavelength: float = 0.589  # sensing wavelength in microns
     dft2: np.ndarray = None
+    slices: list = None
+    es_path: tuple = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -127,19 +154,41 @@ class SHWFS(BaseModel):
             ]
         dft2 = np.kron(dft, dft)
         self.dft2 = dft2
-
+        
+        camp = pupil.astype(np.complex128)
+        # reshape camp so that it's batched into a 4d array with shape:
+        #   (nsub, nsub, subwidth, subwidth)
+        camp = camp.reshape(self.nsubx, self.subwidth, self.nsubx, self.subwidth).swapaxes(1, 2)
+        # flatten the `subwidth` dimensions:
+        camp = camp.reshape(self.nsubx, self.nsubx, self.subwidth*self.subwidth)
+        # get the optimal einsum path to use online
+        self.es_path = tuple(
+            np.einsum_path("ijq,pq->ijp",camp,self.dft2,optimize="optimal")
+        )
+    
     def measure(self, phi):
-        # phi in microns
+        """Measure phase `phi` with shwfs.
+
+        Takes `phi` in microns, returns wfs image intensity
+        """
+        # I'm aware that this is basically unreadable, but it's hella fast.
+        
+        # compute complex amplitude from phase and pupil
         camp = pupil.astype(np.complex128) * \
             np.exp(1j*phi*2*np.pi/self.wavelength)
-        im = np.zeros([self.fovx*self.nsubx]*2, dtype=np.float32)
-        for j in range(self.nsubx):
-            for i in range(self.nsubx):
-                camp_small = camp[j*self.subwidth:(j+1)*self.subwidth,
-                                  i*self.subwidth:(i+1)*self.subwidth]
-                im_s = (np.abs(self.dft2 @ camp_small.flatten())**2)
-                im[j*self.fovx:(j+1)*self.fovx,
-                   i*self.fovx:(i+1)*self.fovx] = im_s.reshape([self.fovx]*2)
+        
+        # reshape camp so that it's batched into a 4d array with shape:
+        #   (nsub, nsub, subwidth, subwidth)
+        camp = camp.reshape(self.nsubx, self.subwidth, self.nsubx, self.subwidth).swapaxes(1, 2)
+        # flatten the phase dimension:
+        camp = camp.reshape(self.nsubx, self.nsubx, self.subwidth*self.subwidth)
+        # do the fft2's batched using the MVM (DFT2) method
+        im = np.einsum("ijq,pq->ijp",camp,self.dft2,optimize=self.es_path[0])
+        # reshape into something that looks like a wfs image
+        im = im.reshape(self.nsubx, self.nsubx, self.fovx, self.fovx).swapaxes(1, 2)
+        im = im.reshape(self.nsubx * self.fovx, self.nsubx * self.fovx)
+        # convert camplitude to intensity
+        im = np.abs(im)**2
         return im
 
     @property
@@ -150,23 +199,28 @@ class SHWFS(BaseModel):
 if __name__ == "__main__":
     pup_width = 64
     pupil = aotools.circle(pup_width//2, pup_width).astype(bool)
+    nwfs = 4  # number of WFSs (number of images produced per timestep)
+    ntargets = 1  # number targets (number of phase produced per timestep)
 
-    phasescreen = PhaseScreen(
-        pupil=pupil
-    )
+    # for now, just one phase screen, eventually this will be wrapped
+    # by an atmosphere object, which combines the turbulence sensibly
+    # for use in tomographic systems.
+    phasescreen = PhaseScreen(pupil=pupil)
 
     shwfs = SHWFS(pupil=pupil)
     phi = phasescreen.get_phase()
     im = shwfs.measure(phi)
-
-    phi_buffer = np.zeros([10000, *phi.shape], dtype=np.float32)
-    im_buffer = np.zeros([10000, *im.shape], dtype=np.float32)
-    for i in tqdm(range(im_buffer.shape[0])):
+    
+    phi_buffer = np.zeros([10000, ntargets, *phi.shape], dtype=np.float32)
+    im_buffer = np.zeros([10000, nwfs, *im.shape], dtype=np.float32)
+    pbar = tqdm(range(im_buffer.shape[0]))
+    for i in pbar:
         phasescreen.step()
         phi = phasescreen.get_phase()
         im = shwfs.measure(phi)
-        phi_buffer[i, ...] = phi
-        im_buffer[i, ...] = im
+        phi_buffer[i, :, ...] = phi[None, ...]
+        im_buffer[i, :, ...] = im[None, ...]  # 
+        pbar.set_description(f"rms wf: {phi.std():0.2f} um")
 
     np.save("im_buffer.npy", im_buffer)
     np.save("phi_buffer.npy", phi_buffer)
