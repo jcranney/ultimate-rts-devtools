@@ -1,6 +1,11 @@
 # ULTIMATE Subaru RTS devtools
 This repository is a collection of tools/scripts for developing and testing the RTS pipelines for the LTAO system of Subaru (ULTIMATE-START and ULTIMATE-GLAO).
 
+<p align="center">
+    <img style="width:300px" src="https://raw.githubusercontent.com/jcranney/ultimate-rts-devtools/main/screenshot.png"
+        alt="screenshot.png"/>
+</p>
+
 ## Setup
 Install requirements:
 ```bash
