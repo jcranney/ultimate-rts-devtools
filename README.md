@@ -21,7 +21,7 @@ The pipeline proposed for the centroiding is:
 ```mermaid
 graph TD
     subgraph A["aquisition PC"]
-        style A fill:#333,stroke:#333,stroke-width:2px;
+        style A fill:#777,stroke:#444,stroke-width:2px,color:#fff;
         subgraph sg1[centroid pipeline 1]
             cal01[calibrator]--clean_frame_01-->cent01[centroider]
         end
@@ -73,3 +73,16 @@ Replay a simulation, (wip):
 ```bash
 ./replay_simulation.sh
 ```
+## Known Issues
+ - `./replay_simulation.sh` will fail the first time after reboot, because `shmImshow.py lgswfs*` will try to load streams that haven't been created yet. Hack fix is to do:
+ ```bash
+ ./replay_all.sh
+ ## this will start replaying the buffer, but fail to show the images
+ ## ...
+ ## wait for ~10 seconds
+ ## ...
+ ## then:
+ tmux kill-session -t replay
+ ./replay_all.sh
+ ```
+ Note that you need to run `./scripts/make_simulated_data.py` first to save the simulated telemetry to disk.

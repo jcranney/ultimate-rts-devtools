@@ -7,5 +7,8 @@
   ],
   "phi_streams" : [
    "phi00"
+  ],
+  "slope_streams" : [
+    "olslopes00"
   ]
 }
