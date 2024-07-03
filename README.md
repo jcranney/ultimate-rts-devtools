@@ -61,23 +61,25 @@ graph TD
 
 aqu[aquisition PC]--cl_slopes-->add
 AO3k
-delay--applied_commands-->imat
-add((+))--pol_slope_vec-->recon(R)
-recon--ol_modes-->mfilt
-mfilt--command_modal-->dmproj(P)
+delay--applied_commands-->imat("D imat")
+add((+))--pol_slope_vec-->recon("R recon")
+recon--"ol_modes"-->mfilt
+mfilt--command_modal-->dmproj("P dmproj")
 dmproj--command_dm-->delay
-imat(imat)--command_feedback_slopes-->add
+imat--command_feedback_slopes-->add
 dmproj--command_dm-->AO3k
 ```
 with the possibility of combining the `calibrator` and `centroider` processes into a single `calibrate_and_centroid` process. The `concatenator` process would also be required to synchronize the 4 input streams before passing the slope vector to the RTS.
 
-## Replay telemetry buffer (WIP)
-Replay a saved telemetry buffer, e.g., a simulated one. Data will be pushed to shared memory at 500 Hz.
+## Replay telemetry buffer
+Replay a saved telemetry buffer, e.g., a simulated one. Data will be pushed to shared memory at 500 Hz. See screenshot above.
 
-Replay a simulation, (wip):
+Replay a simulation:
 ```bash
 ./replay_simulation.sh
 ```
+
+
 ## Known Issues
  - `./replay_simulation.sh` will fail the first time after reboot, because `shmImshow.py lgswfs*` will try to load streams that haven't been created yet. Hack fix is to do:
  ```bash
