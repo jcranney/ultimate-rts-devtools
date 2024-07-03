@@ -3,3 +3,4 @@
 *.npy
 __pycache__/
 *.log
+build/
