@@ -2,8 +2,8 @@
 
 # Define variables
 CC = gcc
-CFLAGS = -I/usr/local/include/ImageStreamIO -I/usr/local/milk-1.03.00/include
-LDFLAGS = -lm -lpthread -L/usr/local/milk-1.03.00/lib # -lCLIcore -lmilkCOREMODmemory
+CFLAGS = -I/usr/local/include/ImageStreamIO #-I/usr/local/milk-1.03.00/include
+LDFLAGS = -lm -lpthread # -L/usr/local/milk-1.03.00/lib  -lCLIcore -lmilkCOREMODmemory
 LIB_SRC = $(HOME)/isio/ImageStreamIO.c
 
 # Default target
@@ -13,6 +13,7 @@ all: centroider
 centroider: ./src/centroider.c $(LIB_SRC)
 	mkdir -p ./build
 	$(CC) ./src/centroider.c $(LIB_SRC) -o ./build/centroider.o $(CFLAGS) $(LDFLAGS)
+	ln -fs ./build/centroider.o ./centroider
 
 # Clean up build files
 clean:
