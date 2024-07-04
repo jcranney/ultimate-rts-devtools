@@ -12,7 +12,7 @@ all: centroider
 # Compile the program
 centroider: ./src/centroider.c $(LIB_SRC)
 	mkdir -p ./build
-	$(CC) ./src/centroider.c $(LIB_SRC) -o ./build/centroider.o $(CFLAGS) $(LDFLAGS)
+	$(CC) ./src/centroider.c $(LIB_SRC) -o ./build/centroider.o $(CFLAGS) $(LDFLAGS) -O3
 	ln -fs ./build/centroider.o ./centroider
 
 # Clean up build files

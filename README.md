@@ -78,6 +78,10 @@ Replay a simulation:
 ```bash
 ./replay_simulation.sh
 ```
+or, e.g.,
+```bash
+./replay_wfs00.sh
+```
 
 
 ## Known Issues
@@ -93,3 +97,8 @@ Replay a simulation:
  ./replay_all.sh
  ```
  Note that you need to run `./scripts/make_simulated_data.py` first to save the simulated telemetry to disk.
+
+## TODO:
+ - C-profiling/benchmarking for `centroider.c`
+ - `procCTRL`-ify the centroider,
+ - Simple closed-loop RTS, no POLC.

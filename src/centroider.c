@@ -39,7 +39,11 @@
 const uint32_t N_SUBX = 32;
 const uint32_t FOV_X = 8;
 const char* WFS_ID = "00";
+
+// Parameters that should go in config (for FPS)
 const float_t COG_THRESH = 0.0; // greater than -1 implies "use threshold"
+// const uint32_t j0 = 0;
+// const uint32_t i0 = 0;
 
 int main()
 {
