@@ -10,6 +10,10 @@ parser.add_argument(
     help="pass data to json file instead of stdout"
 )
 parser.add_argument(
+    "--shmsuffix", nargs="?",
+    help="suffix for shared memory object name, e.g., lgs00"
+)
+parser.add_argument(
     "--plot", action="count", default=0,
     help="if present, show plots to user"
 )
@@ -162,3 +166,10 @@ if output is not None:
         json.dump(data, fp, default=int, indent=4)
 else:
     print(json.dumps(data, default=int), flush=True)
+
+if args.shmsuffix is not None:
+    from pyMilk.interfacing.isio_shmlib import SHM
+    SHM("lut_xx_c_"+args.shmsuffix, xx.astype(np.float32))
+    SHM("lut_yy_c_"+args.shmsuffix, yy.astype(np.float32))
+    SHM("lut_xx_0_"+args.shmsuffix, xx_0.astype(np.uint32))
+    SHM("lut_yy_0_"+args.shmsuffix, yy_0.astype(np.uint32))
