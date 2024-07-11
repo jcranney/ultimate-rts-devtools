@@ -9,6 +9,7 @@ from typing import Union
 import torch
 import aocov
 
+
 class PhaseScreen(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     pupil: np.ndarray
@@ -49,7 +50,7 @@ class PhaseScreen(BaseModel):
         device: str = None
 
         def __init__(self, cov_yx, inv_factor_xx, *args, **kwargs):
-            super().__init__(*args,**kwargs)
+            super().__init__(*args, **kwargs)
             self.device = cov_yx.device.type
             self.ML = torch.einsum(
                 "ij,jk->ik",
@@ -128,7 +129,10 @@ class PhaseScreen(BaseModel):
             xx+self.wind[0]*self.ittime, yy+self.wind[1]*self.ittime, xx, yy
         )
         print("about to build statematrix")
-        state_matrix = self.StateMatrix(torch.tensor(sigma_yx, device=self.device), _inv_factor_xx)
+        state_matrix = self.StateMatrix(
+            torch.tensor(sigma_yx, device=self.device),
+            _inv_factor_xx
+        )
         print("got it")
         sigma_vv = sigma_xx - state_matrix.dot(state_matrix.dot(sigma_xx).T).T
         print("did big MMMs")
@@ -137,7 +141,10 @@ class PhaseScreen(BaseModel):
         _factor_vv, _ = self._factorh(sigma_vv)
         self._factor_vv = _factor_vv
         print("nice, starting up")
-        self._x = self._factor_xx @ torch.tensor(self.rng.normal(size=self._factor_xx.shape[1]), device=self.device)
+        self._x = self._factor_xx @ torch.tensor(
+            self.rng.normal(size=self._factor_xx.shape[1]),
+            device=self.device
+        )
 
     def _covariance(self, x_in, y_in, x_out, y_out):
         cov = aocov.phase_covariance_xyxy(
@@ -146,12 +153,9 @@ class PhaseScreen(BaseModel):
         return cov
 
     def _factorh(self, symmetric_matrix):
-        # vals, vecs = np.linalg.eigh(symmetric_matrix)
         vals, vecs = torch.linalg.eigh(
-            torch.tensor(symmetric_matrix,device=self.device)
+            torch.tensor(symmetric_matrix, device=self.device)
         )
-        #vals = vals.detach().cpu().numpy()
-        #vecs = vecs.detach().cpu().numpy()
         valid = vals > self.thresh
         vecs = vecs[:, valid]
         vals = vals[valid]
@@ -161,7 +165,7 @@ class PhaseScreen(BaseModel):
 
     def step(self):
         v = torch.tensor(
-            self.rng.normal(size=self._factor_vv.shape[1]), 
+            self.rng.normal(size=self._factor_vv.shape[1]),
             device=self.device
         )
         self._x = self.state_matrix._dot(self._x) + self._factor_vv @ v
@@ -169,11 +173,11 @@ class PhaseScreen(BaseModel):
     @property
     def x(self):
         return self._x.detach().cpu().numpy()
-    
+
     @property
     def factor_xx(self):
         return self._factor_xx.detach().cpu().numpy()
-    
+
     @property
     def factor_vv(self):
         return self._factor_vv.detach().cpu().numpy()
@@ -181,7 +185,7 @@ class PhaseScreen(BaseModel):
     @property
     def phase(self):
         phi = np.zeros([self.n_dirs, *self.pupil.shape])
-        for i,phi_i in enumerate(phi):
+        for i, phi_i in enumerate(phi):
             phi_i[self.pupil] = self.x[i*self.nvalid:(i+1)*self.nvalid].copy()
         return phi
 
@@ -334,6 +338,7 @@ if __name__ == "__main__":
     pup_width = 64
     fovx = 8  # pixels
     nsubx = 32  # across diameter
+    device = "cpu"
     pupil = aotools.circle(pup_width//2, pup_width).astype(bool)
     wfs_tar = np.array([
         [-10.0, 0.0],
@@ -355,7 +360,7 @@ if __name__ == "__main__":
         pupil=pupil,
         thresh=1e-5,
         targets=targets,
-        device="cuda",
+        device=device,
         height=1000,
     )
     print(f"{phasescreen.factor_xx.shape=}")
@@ -394,9 +399,9 @@ if __name__ == "__main__":
         phasescreen.step()
         phis = phasescreen.phase
         slopes = []
-        for j,phi in enumerate(phis[:n_wfs]):
+        for j, phi in enumerate(phis[:n_wfs]):
             shwfs.measure(phi)
-            slopes.append(cog.cog(shwfs.image_batched)[valid].T.flatten())  # yao slope fmt
+            slopes.append(cog.cog(shwfs.image_batched)[valid].T.flatten())
             im_buffer[i, j, ...] = shwfs.image
         slope_buffer[i, :] = np.concatenate(slopes, axis=0)
         phi_buffer[i, 0, ...] = phis[-1, ...]

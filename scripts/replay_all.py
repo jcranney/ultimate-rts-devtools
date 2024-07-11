@@ -12,6 +12,7 @@ if __name__ == "__main__":
     ]
     shm_phases = [SHM("phi00", ((64, 64), np.float32))]
     shm_slopes = SHM("olslopes00", ((slope_buffer.shape[1],), np.float32))
+    framerate = 100
     t = time.time()
     while True:
         for im, phi, slope in zip(im_buffer, phi_buffer, slope_buffer):
@@ -21,6 +22,6 @@ if __name__ == "__main__":
                 shm.set_data(data)
             shm_slopes.set_data(slope)
             while True:
-                if (time.time() - t) > 2e-3:
+                if (time.time() - t) > 1/framerate:
                     t = time.time()
                     break
