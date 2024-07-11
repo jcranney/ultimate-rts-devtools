@@ -9,7 +9,6 @@ from typing import Union
 import torch
 import aocov
 
-
 class PhaseScreen(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     pupil: np.ndarray
@@ -21,9 +20,6 @@ class PhaseScreen(BaseModel):
     ittime: float = 1/500  # seconds
     pixsize: float = None
     thresh: float = 1e-5  # eigenval threshold
-    factor_xx: np.ndarray = None
-    factor_vv: np.ndarray = None
-    x: np.ndarray = None
     seed: int = 1234
     rng: np.random.Generator = None
     height: float = 0.0  # metres
@@ -31,44 +27,52 @@ class PhaseScreen(BaseModel):
         [0.0, 0.0],                    # x/y direction (arcsec)
     ])
     ARCSEC2RAD: float = np.pi/180/3600
+    device: str = "cpu"
+
+    @property
+    def nvalid(self):
+        return self.pupil.sum()
 
     @property
     def n_dirs(self):
         return self.targets.shape[0]
 
-    class StateMatrix:
+    class StateMatrix(BaseModel):
         """Special class for the state matrix, since I realised it has some
-        really nice properties that allow us to do multiplication ~20x
-        faster.
+        really nice properties that allow us to do multiplication faster.
+        Goes on same device as input arrays were.
         """
-        def __init__(self, cov_yx, inv_factor_xx):
-            self.ML = np.einsum(
+        model_config = ConfigDict(arbitrary_types_allowed=True)
+        ML: torch.Tensor = None
+        LT: torch.Tensor = None
+        A: torch.Tensor = None
+        device: str = None
+
+        def __init__(self, cov_yx, inv_factor_xx, *args, **kwargs):
+            super().__init__(*args,**kwargs)
+            self.device = cov_yx.device.type
+            self.ML = torch.einsum(
                 "ij,jk->ik",
                 cov_yx, inv_factor_xx,
-                optimize="optimal"
             )
-            self.LT = inv_factor_xx.T.copy()
-            self.A = np.einsum(
+            self.LT = inv_factor_xx.T.clone()
+            self.A = torch.einsum(
                 "ij,jk->ik",
                 self.ML, self.LT,
-                optimize="optimal"
-            )
-            x = np.ones(self.A.shape[1])
-            self.es_path = np.einsum_path(
-                "ij,jk,k...->i...",
-                self.ML,
-                self.LT,
-                x,
-                optimize="optimal"
             )
 
-        def dot(self, x):
-            return np.einsum(
+        def _dot(self, x: torch.Tensor):
+            return torch.einsum(
                 "ij,jk,k...->i...",
                 self.ML,
                 self.LT,
                 x,
-                optimize=self.es_path[0])
+            )
+
+        def dot(self, x: np.ndarray):
+            return self._dot(
+                torch.tensor(x, device=self.device)
+            ).detach().cpu().numpy()
 
         @property
         def shape(self):
@@ -77,15 +81,12 @@ class PhaseScreen(BaseModel):
         def test_speed(self, ntests=100, seed=1):
             rng = np.random.default_rng(seed)
             x = rng.normal(size=[self.shape[1], ntests])
-            es_path_original = np.einsum_path(
-                "ij,j...->i...",
-                self.A, x, optimize="optimal")[0]
             t1 = time.time()
             self.dot(x)
             t2 = time.time()
             np.einsum(
                 "ij,j...->i...",
-                self.A, x, optimize=es_path_original)
+                self.A, x)
             t3 = time.time()
             print(f"original: {(t3-t2)/ntests:0.3e}")
             print(f"improved: {(t2-t1)/ntests:0.3e}")
@@ -119,36 +120,38 @@ class PhaseScreen(BaseModel):
             xx, yy, xx, yy
         )
         print("factorising first covmat")
-        self.factor_xx, inv_factor_xx = self._factorh(sigma_xx)
+        _factor_xx, _inv_factor_xx = self._factorh(sigma_xx)
+        self._factor_xx = _factor_xx
 
         print("building second covmat")
         sigma_yx = self.laminar * self._covariance(
             xx+self.wind[0]*self.ittime, yy+self.wind[1]*self.ittime, xx, yy
         )
         print("about to build statematrix")
-        state_matrix = self.StateMatrix(sigma_yx, inv_factor_xx)
+        state_matrix = self.StateMatrix(torch.tensor(sigma_yx, device=self.device), _inv_factor_xx)
         print("got it")
         sigma_vv = sigma_xx - state_matrix.dot(state_matrix.dot(sigma_xx).T).T
         print("did big MMMs")
         self.state_matrix = state_matrix
         print("factorising sigma_vv")
-        self.factor_vv, _ = self._factorh(sigma_vv)
+        _factor_vv, _ = self._factorh(sigma_vv)
+        self._factor_vv = _factor_vv
         print("nice, starting up")
-        self.x = self.factor_xx @ self.rng.normal(size=self.factor_xx.shape[1])
+        self._x = self._factor_xx @ torch.tensor(self.rng.normal(size=self._factor_xx.shape[1]), device=self.device)
 
     def _covariance(self, x_in, y_in, x_out, y_out):
         cov = aocov.phase_covariance_xyxy(
-            x_out, y_out, x_in, y_in, self.r0, self.L0
+            x_out, y_out, x_in, y_in, self.r0, self.L0, device=self.device
             )*(0.5/(np.pi*2))**2
         return cov
 
     def _factorh(self, symmetric_matrix):
         # vals, vecs = np.linalg.eigh(symmetric_matrix)
         vals, vecs = torch.linalg.eigh(
-            torch.tensor(symmetric_matrix)
+            torch.tensor(symmetric_matrix,device=self.device)
         )
-        vals = vals.detach().cpu().numpy()
-        vecs = vals.detach().cpu().numpy()
+        #vals = vals.detach().cpu().numpy()
+        #vecs = vecs.detach().cpu().numpy()
         valid = vals > self.thresh
         vecs = vecs[:, valid]
         vals = vals[valid]
@@ -157,13 +160,29 @@ class PhaseScreen(BaseModel):
         return factor, inv_factor
 
     def step(self):
-        v = self.rng.normal(size=self.factor_vv.shape[1])
-        self.x = self.state_matrix.dot(self.x) + self.factor_vv @ v
+        v = torch.tensor(
+            self.rng.normal(size=self._factor_vv.shape[1]), 
+            device=self.device
+        )
+        self._x = self.state_matrix._dot(self._x) + self._factor_vv @ v
+
+    @property
+    def x(self):
+        return self._x.detach().cpu().numpy()
+    
+    @property
+    def factor_xx(self):
+        return self._factor_xx.detach().cpu().numpy()
+    
+    @property
+    def factor_vv(self):
+        return self._factor_vv.detach().cpu().numpy()
 
     @property
     def phase(self):
         phi = np.zeros([self.n_dirs, *self.pupil.shape])
-        phi[:, self.pupil] = self.x.copy()
+        for i,phi_i in enumerate(phi):
+            phi_i[self.pupil] = self.x[i*self.nvalid:(i+1)*self.nvalid].copy()
         return phi
 
 
@@ -336,7 +355,11 @@ if __name__ == "__main__":
         pupil=pupil,
         thresh=1e-5,
         targets=targets,
+        device="cuda",
+        height=1000,
     )
+    print(f"{phasescreen.factor_xx.shape=}")
+    print(f"{phasescreen.factor_vv.shape=}")
 
     shwfs = SHWFS(pupil=pupil, nsubx=nsubx, fovx=fovx)
     phi = phasescreen.phase[0]
@@ -369,15 +392,14 @@ if __name__ == "__main__":
     pbar = tqdm(range(im_buffer.shape[0]))
     for i in pbar:
         phasescreen.step()
-        phi = phasescreen.phase[0]
-        shwfs.measure(phi)
-        slopes = np.tile(
-            cog.cog(shwfs.image_batched)[valid].T.flatten(),  # yao slope fmt
-            reps=n_wfs
-        )
-        phi_buffer[i, :, ...] = phi[None, ...]
-        im_buffer[i, :, ...] = shwfs.image[None, ...]
-        slope_buffer[i, :] = slopes
+        phis = phasescreen.phase
+        slopes = []
+        for j,phi in enumerate(phis[:n_wfs]):
+            shwfs.measure(phi)
+            slopes.append(cog.cog(shwfs.image_batched)[valid].T.flatten())  # yao slope fmt
+            im_buffer[i, j, ...] = shwfs.image
+        slope_buffer[i, :] = np.concatenate(slopes, axis=0)
+        phi_buffer[i, 0, ...] = phis[-1, ...]
         pbar.set_description(f"rms wf: {phi.std():0.2f} um")
 
     np.save("im_buffer.npy", im_buffer)

@@ -3,3 +3,4 @@ aotools
 pydantic
 tqdm
 aocov
+opt_einsum
