@@ -2,3 +2,4 @@ numpy
 aotools
 pydantic
 tqdm
+aocov

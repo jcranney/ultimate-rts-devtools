@@ -6,6 +6,8 @@ from pydantic import BaseModel, ConfigDict
 from tqdm import tqdm
 import time
 from typing import Union
+import torch
+import aocov
 
 
 class PhaseScreen(BaseModel):
@@ -18,22 +20,39 @@ class PhaseScreen(BaseModel):
     wind: np.ndarray = np.r_[10, 20]  # [x,y] m/s
     ittime: float = 1/500  # seconds
     pixsize: float = None
-    thresh: float = 1e-10  # eigenval threshold
+    thresh: float = 1e-5  # eigenval threshold
     factor_xx: np.ndarray = None
     factor_vv: np.ndarray = None
     x: np.ndarray = None
     seed: int = 1234
     rng: np.random.Generator = None
+    height: float = 0.0  # metres
+    targets: np.ndarray = np.array([   # one row per phase direction
+        [0.0, 0.0],                    # x/y direction (arcsec)
+    ])
+    ARCSEC2RAD: float = np.pi/180/3600
+
+    @property
+    def n_dirs(self):
+        return self.targets.shape[0]
 
     class StateMatrix:
         """Special class for the state matrix, since I realised it has some
-        really nice properties that allow us to do multiplication ~20x 
+        really nice properties that allow us to do multiplication ~20x
         faster.
         """
         def __init__(self, cov_yx, inv_factor_xx):
-            self.ML = np.einsum("ij,jk->ik", cov_yx, inv_factor_xx)
+            self.ML = np.einsum(
+                "ij,jk->ik",
+                cov_yx, inv_factor_xx,
+                optimize="optimal"
+            )
             self.LT = inv_factor_xx.T.copy()
-            self.A = np.einsum("ij,jk->ik", self.ML, self.LT)
+            self.A = np.einsum(
+                "ij,jk->ik",
+                self.ML, self.LT,
+                optimize="optimal"
+            )
             x = np.ones(self.A.shape[1])
             self.es_path = np.einsum_path(
                 "ij,jk,k...->i...",
@@ -50,16 +69,16 @@ class PhaseScreen(BaseModel):
                 self.LT,
                 x,
                 optimize=self.es_path[0])
-        
+
         @property
         def shape(self):
             return self.A.shape
 
         def test_speed(self, ntests=100, seed=1):
             rng = np.random.default_rng(seed)
-            x = rng.normal(size=[self.shape[1],ntests])
+            x = rng.normal(size=[self.shape[1], ntests])
             es_path_original = np.einsum_path(
-                "ij,j...->i...", 
+                "ij,j...->i...",
                 self.A, x, optimize="optimal")[0]
             t1 = time.time()
             self.dot(x)
@@ -83,6 +102,15 @@ class PhaseScreen(BaseModel):
         yy = yy[self.pupil == 1]
         xx = xx[self.pupil == 1]
 
+        xx = np.tile(xx[None, :], [self.n_dirs, 1])
+        yy = np.tile(yy[None, :], [self.n_dirs, 1])
+
+        for i in range(self.n_dirs):
+            xx[i] += self.height * self.targets[i, 0]*self.ARCSEC2RAD
+            yy[i] += self.height * self.targets[i, 1]*self.ARCSEC2RAD
+
+        xx = xx.ravel()
+        yy = yy.ravel()
         # let sigma_xx -> covariance of phase with self
         # let sigma_yx -> covariance between phase and next phase
         # let sigma_vv -> covariance of driving noise with self
@@ -90,6 +118,7 @@ class PhaseScreen(BaseModel):
         sigma_xx = self._covariance(
             xx, yy, xx, yy
         )
+        print("factorising first covmat")
         self.factor_xx, inv_factor_xx = self._factorh(sigma_xx)
 
         print("building second covmat")
@@ -108,20 +137,23 @@ class PhaseScreen(BaseModel):
         self.x = self.factor_xx @ self.rng.normal(size=self.factor_xx.shape[1])
 
     def _covariance(self, x_in, y_in, x_out, y_out):
-        rr = (x_out[:, None]-x_in[None, :])**2 + \
-            (y_out[:, None]-y_in[None, :])**2
-        cov = aotools.phase_covariance(
-            rr, self.r0, self.L0
+        cov = aocov.phase_covariance_xyxy(
+            x_out, y_out, x_in, y_in, self.r0, self.L0
             )*(0.5/(np.pi*2))**2
         return cov
 
     def _factorh(self, symmetric_matrix):
-        vals, vecs = np.linalg.eigh(symmetric_matrix)
+        # vals, vecs = np.linalg.eigh(symmetric_matrix)
+        vals, vecs = torch.linalg.eigh(
+            torch.tensor(symmetric_matrix)
+        )
+        vals = vals.detach().cpu().numpy()
+        vecs = vals.detach().cpu().numpy()
         valid = vals > self.thresh
         vecs = vecs[:, valid]
         vals = vals[valid]
-        factor = vecs * (vals**0.5)[None,:]
-        inv_factor = vecs * ((1/vals)**0.5)[None,:]
+        factor = vecs * (vals**0.5)[None, :]
+        inv_factor = vecs * ((1/vals)**0.5)[None, :]
         return factor, inv_factor
 
     def step(self):
@@ -130,8 +162,8 @@ class PhaseScreen(BaseModel):
 
     @property
     def phase(self):
-        phi = np.zeros(self.pupil.shape)
-        phi[self.pupil] = self.x.copy()
+        phi = np.zeros([self.n_dirs, *self.pupil.shape])
+        phi[:, self.pupil] = self.x.copy()
         return phi
 
 
@@ -160,42 +192,56 @@ class SHWFS(BaseModel):
             ]
         dft2 = np.kron(dft, dft)
         self.dft2 = dft2
-        
+
         camp = pupil.astype(np.complex128)
         # reshape camp so that it's batched into a 4d array with shape:
         #   (nsub, nsub, subwidth, subwidth)
-        camp = camp.reshape(self.nsubx, self.subwidth, self.nsubx, self.subwidth).swapaxes(1, 2)
+        camp = camp.reshape(
+            self.nsubx, self.subwidth, self.nsubx, self.subwidth
+        ).swapaxes(1, 2)
         # flatten the `subwidth` dimensions:
-        camp = camp.reshape(self.nsubx, self.nsubx, self.subwidth*self.subwidth)
+        camp = camp.reshape(
+            self.nsubx, self.nsubx, self.subwidth*self.subwidth
+        )
         # get the optimal einsum path to use online
         self.es_path = tuple(
-            np.einsum_path("ijq,pq->ijp",camp,self.dft2,optimize="optimal")
+            np.einsum_path("ijq,pq->ijp", camp, self.dft2, optimize="optimal")
         )
-    
+
     def measure(self, phi):
         """Measure phase `phi` with shwfs.
 
         Takes `phi` in microns, returns wfs image intensity
         """
         # I'm aware that this is basically unreadable, but it's hella fast.
-        
+
         # compute complex amplitude from phase and pupil
         camp = pupil.astype(np.complex128) * \
             np.exp(1j*phi*2*np.pi/self.wavelength)
-        
+
         # reshape camp so that it's batched into a 4d array with shape:
         #   (nsub, nsub, subwidth, subwidth)
-        camp = camp.reshape(self.nsubx, self.subwidth, self.nsubx, self.subwidth).swapaxes(1, 2)
+        camp = camp.reshape(
+            self.nsubx, self.subwidth, self.nsubx, self.subwidth
+        ).swapaxes(1, 2)
         # flatten the phase dimension:
-        camp = camp.reshape(self.nsubx, self.nsubx, self.subwidth*self.subwidth)
+        camp = camp.reshape(
+            self.nsubx, self.nsubx, self.subwidth*self.subwidth
+        )
         # do the fft2's batched using the MVM (DFT2) method
-        im = np.einsum("ijq,pq->ijp",camp,self.dft2,optimize=self.es_path[0])
+        im = np.einsum(
+            "ijq,pq->ijp", camp, self.dft2, optimize=self.es_path[0]
+        )
         # convert camplitude to intensity
         im = np.abs(im)**2
-        # save a view of the image batched into subapertures (for the centroider)
-        self._im_subaps = im.reshape(self.nsubx*self.nsubx, self.fovx, self.fovx)
+        # save a view of the image batched into subapertures (for cog)
+        self._im_subaps = im.reshape(
+            self.nsubx*self.nsubx, self.fovx, self.fovx
+        )
         # reshape into something that looks like a wfs image
-        im = im.reshape(self.nsubx, self.nsubx, self.fovx, self.fovx).swapaxes(1, 2)
+        im = im.reshape(
+            self.nsubx, self.nsubx, self.fovx, self.fovx
+        ).swapaxes(1, 2)
         im = im.reshape(self.nsubx * self.fovx, self.nsubx * self.fovx)
         # save a view of the image as a full WFS readout
         self._im_full = im
@@ -203,7 +249,7 @@ class SHWFS(BaseModel):
     @property
     def subwidth(self):
         return self.pupil.shape[0] // self.nsubx
-    
+
     @property
     def image(self):
         return self._im_full.copy()
@@ -215,21 +261,21 @@ class SHWFS(BaseModel):
 
 class ClassicCog(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    npix : int
-    r_mat : np.ndarray = None
-    xy_mat : np.ndarray = None
-    thresh : Union[None, float] = 0.0
-    einsum_num_str : str = "jk,ik,jk->ij"
-    es_path : list = None
+    npix: int
+    r_mat: np.ndarray = None
+    xy_mat: np.ndarray = None
+    thresh: Union[None, float] = 0.0
+    einsum_num_str: str = "jk,ik,jk->ij"
+    es_path: list = None
 
     def calibrate(self):
         x_span = np.arange(self.npix)-self.npix/2+0.5
-        xx,yy = np.meshgrid(x_span,x_span,indexing="xy")
+        xx, yy = np.meshgrid(x_span, x_span, indexing="xy")
         # xy matrix is [2,Npixels]
         self.xy_mat = np.concatenate([
-            xx.flatten()[:,None],
-            yy.flatten()[:,None]
-            ],axis=1).T
+            xx.flatten()[:, None],
+            yy.flatten()[:, None]
+            ], axis=1).T
         self.r_mat = np.ones(self.xy_mat.shape)
         self.optimize_einsum()
 
@@ -240,44 +286,60 @@ class ClassicCog(BaseModel):
             self.r_mat,
             intsty,
             self.xy_mat,
-            optimize = self.es_path
+            optimize=self.es_path
         )
 
     def cog(self, intensity):
-        """compute the centroid of an [npix,npix] image or batch of 
+        """compute the centroid of an [npix,npix] image or batch of
         [N,npix,npix] images.
         """
-        if len(intensity.shape)==2:
-            intensity = intensity[None,...]
+        if len(intensity.shape) == 2:
+            intensity = intensity[None, ...]
         if self.thresh is not None:
             intensity = intensity - self.thresh
             intensity[intensity < 0] = 0.0
         num = np.einsum(
             self.einsum_num_str,
             self.r_mat,
-            intensity.reshape(intensity.shape[0], np.prod(intensity.shape[1:])),
+            intensity.reshape(
+                intensity.shape[0], np.prod(intensity.shape[1:])
+            ),
             self.xy_mat,
-            optimize = self.es_path[0]
+            optimize=self.es_path[0]
         )
-        den = np.sum(intensity, axis=(1,2))[:,None]
-        return  num / den
+        den = np.sum(intensity, axis=(1, 2))[:, None]
+        return num/den
 
 
 if __name__ == "__main__":
     pup_width = 64
-    fovx = 8 # pixels
-    nsubx = 32 # across diameter
+    fovx = 8  # pixels
+    nsubx = 32  # across diameter
     pupil = aotools.circle(pup_width//2, pup_width).astype(bool)
-    nwfs = 4  # number of WFSs (number of images produced per timestep)
-    ntargets = 1  # number targets (number of phase produced per timestep)
+    wfs_tar = np.array([
+        [-10.0, 0.0],
+        [0.0, 10.0],
+        [10.0, 0.0],
+        [0.0, -10.0],
+    ])
+    n_wfs = wfs_tar.shape[0]
+    sci_tar = np.array([
+        [0.0, 0.0],
+    ])
+    n_sci = sci_tar.shape[0]
 
     # for now, just one phase screen, eventually this will be wrapped
     # by an atmosphere object, which combines the turbulence sensibly
     # for use in tomographic systems.
-    phasescreen = PhaseScreen(pupil=pupil)
+    targets = np.concatenate([wfs_tar, sci_tar], axis=0)
+    phasescreen = PhaseScreen(
+        pupil=pupil,
+        thresh=1e-5,
+        targets=targets,
+    )
 
     shwfs = SHWFS(pupil=pupil, nsubx=nsubx, fovx=fovx)
-    phi = phasescreen.phase
+    phi = phasescreen.phase[0]
     shwfs.measure(phi)
     im = shwfs.image
 
@@ -288,21 +350,30 @@ if __name__ == "__main__":
     cog.calibrate()
     slopes = cog.cog(shwfs.image_batched)
 
-    flux = shwfs.image_batched.sum(axis=(1,2))
+    flux = shwfs.image_batched.sum(axis=(1, 2))
     valid = flux > (0.5*flux.max())
 
     nframes = 10000
-    phi_buffer = np.zeros([nframes, ntargets, *phi.shape], dtype=np.float32)
-    im_buffer = np.zeros([nframes, nwfs, *im.shape], dtype=np.float32)
-    slope_buffer = np.zeros([nframes, nwfs*2*valid.sum()], dtype=np.float32)
+    phi_buffer = np.zeros(
+        [nframes, n_sci, *phi.shape],
+        dtype=np.float32
+    )
+    im_buffer = np.zeros(
+        [nframes, n_wfs, *im.shape],
+        dtype=np.float32
+    )
+    slope_buffer = np.zeros(
+        [nframes, n_wfs*2*valid.sum()],
+        dtype=np.float32
+    )
     pbar = tqdm(range(im_buffer.shape[0]))
     for i in pbar:
         phasescreen.step()
-        phi = phasescreen.phase
+        phi = phasescreen.phase[0]
         shwfs.measure(phi)
         slopes = np.tile(
-            cog.cog(shwfs.image_batched)[valid].T.flatten(), # yao slope fmt
-            reps=nwfs
+            cog.cog(shwfs.image_batched)[valid].T.flatten(),  # yao slope fmt
+            reps=n_wfs
         )
         phi_buffer[i, :, ...] = phi[None, ...]
         im_buffer[i, :, ...] = shwfs.image[None, ...]
