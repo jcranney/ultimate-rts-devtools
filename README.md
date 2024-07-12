@@ -76,27 +76,12 @@ Replay a saved telemetry buffer, e.g., a simulated one. Data will be pushed to s
 
 Replay a simulation:
 ```bash
-./replay_simulation.sh
+./scripts/replay_simu.sh
 ```
 or, e.g.,
 ```bash
-./replay_wfs00.sh
+./scripts/replay_wfs01.sh
 ```
-
-
-## Known Issues
- - `./replay_simulation.sh` will fail the first time after reboot, because `shmImshow.py lgswfs*` will try to load streams that haven't been created yet. Hack fix is to do:
- ```bash
- ./replay_all.sh
- ## this will start replaying the buffer, but fail to show the images
- ## ...
- ## wait for ~10 seconds
- ## ...
- ## then:
- tmux kill-session -t replay
- ./replay_all.sh
- ```
- Note that you need to run `./scripts/make_simulated_data.py` first to save the simulated telemetry to disk.
 
 ## TODO:
  - C-profiling/benchmarking for `centroider.c`

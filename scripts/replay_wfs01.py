@@ -4,8 +4,8 @@ import time
 
 if __name__ == "__main__":
     framerate = 100.0
-    im_buffer = np.load("im_buffer.npy")[:,0,...]
-    shm_wfs_image = SHM(f"lgswfs00", ((256, 256), np.float32))
+    im_buffer = np.load("im_buffer.npy")[:, 0, ...]
+    shm_wfs_image = SHM("lgswfs01", ((256, 256), np.float32))
     t = time.time()
     while True:
         for im in im_buffer:

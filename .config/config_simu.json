@@ -1,14 +1,14 @@
 {
   "wfs_streams" : [
-   "lgswfs00",
    "lgswfs01",
    "lgswfs02",
-   "lgswfs03"
+   "lgswfs03",
+   "lgswfs04"
   ],
   "phi_streams" : [
-   "phi00"
+   "phi01"
   ],
   "slope_streams" : [
-    "olslopes00"
+    "olslopes01"
   ]
 }

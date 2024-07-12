@@ -1,7 +1,7 @@
 #!/bin/bash
 
 SESSION_NAME="replay"
-CONF_FILE="config.json"
+CONF_FILE=".config/config_simu.json"
 FRAMERATE=30
 
 # Function to create panes in tmux
@@ -32,16 +32,21 @@ fi
 
 tmux new-session -d -s $SESSION_NAME
 
+# Read conf file and extract commands
+N=$(jq '.wfs_streams | length' $CONF_FILE)
+M=$(jq '.phi_streams | length' $CONF_FILE)
+P=$(jq '.slope_streams | length' $CONF_FILE)
+
 # Read wfs-streams and phi-streams from conf file
-WFS_STREAMS="lgswfs00"
-SLOPE_STREAMS="slopes00"
-FLUX_STREAMS=("flux00" "slopemap00")
+WFS_STREAMS=($(jq -r '.wfs_streams | .[]' $CONF_FILE))
+PHI_STREAMS=($(jq -r '.phi_streams | .[]' $CONF_FILE))
+SLOPE_STREAMS=($(jq -r '.slope_streams | .[]' $CONF_FILE))
 
 # Create windows and panes
 tmux rename-window -t $SESSION_NAME:0 "replay buffer"
 tmux send-keys "cd scripts" C-m
-tmux send-keys "ipython ./replay_wfs00.py" C-m
+tmux send-keys "ipython ./replay_all.py" C-m
 
 create_panes "wfs streams" WFS_STREAMS[@] shmImshow.py
-create_panes "flux streams" FLUX_STREAMS[@] shmImshow.py
+create_panes "phase streams" PHI_STREAMS[@] shmImshow.py
 create_panes "slope streams" SLOPE_STREAMS[@] shmPlot.py

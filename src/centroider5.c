@@ -35,9 +35,9 @@
 // TODO: check YON/OGU when to define this (compile vs runtime?)
 const uint32_t N_SUBX = 32;
 const uint32_t FOV_X = 8;
-const char* RAW_IMG_STREAM = "scmos1_data";
-const char* BG_IMG_STREAM = "scmos1_bg";
-const char* WFS_ID = "01"; // <- this is gradually being deprecated
+const char* RAW_IMG_STREAM = "scmos5_data";
+const char* BG_IMG_STREAM = "scmos5_bg";
+const char* WFS_ID = "05"; // <- this is gradually being deprecated
 
 // Parameters that should go in config (for FPS)
 const float_t COG_THRESH = 0.0; // greater than -1 implies "use threshold"

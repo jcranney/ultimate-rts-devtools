@@ -1,0 +1,11 @@
+{
+  "wfs_streams" : [
+   "flux01",
+   "flux02",
+   "flux03",
+   "flux04",
+   "flux05"
+  ],
+  "slope_streams" : [
+  ]
+}

@@ -7,11 +7,11 @@ parser = argparse.ArgumentParser("build LUT for WFS subapertures")
 
 parser.add_argument(
     "--output", nargs="?",
-    help="pass data to json file instead of stdout"
+    help="save data to json file, e.g., for logging"
 )
 parser.add_argument(
     "--shmsuffix", nargs="?",
-    help="suffix for shared memory object name, e.g., lgs00"
+    help="suffix for shared memory object name, e.g., lgs01"
 )
 parser.add_argument(
     "--plot", action="count", default=0,
@@ -50,19 +50,19 @@ parser.add_argument(
     help="rotation in radians"
 )
 parser.add_argument(
-    "--PITCH_X", type=float, default=7.0,
+    "--PITCH_X", type=float, default=8.0,
     help="spacing of subaperture images in x"
 )
 parser.add_argument(
-    "--PITCH_Y", type=float, default=7.0,
+    "--PITCH_Y", type=float, default=8.0,
     help="spacing of subaperture images in y"
 )
 parser.add_argument(
-    "--FOV_X", type=int, default=7,
+    "--FOV_X", type=int, default=8,
     help="number of pixels per subaperture image in x"
 )
 parser.add_argument(
-    "--FOV_Y", type=int, default=7,
+    "--FOV_Y", type=int, default=8,
     help="number of pixels per subaperture image in y"
 )
 args = parser.parse_args()
@@ -101,9 +101,9 @@ yy_0 = np.round(yy - args.FOV_Y/2).astype(int)
 # determine invalid subapertures (accessing out of bounds)
 valid = np.ones(xx_0.shape, dtype=bool)
 valid = valid & (xx_0 >= 0)
-valid = valid & ((xx_0 + args.FOV_X) < args.IMG_W)
+valid = valid & ((xx_0 + args.FOV_X - 1) < args.IMG_W)
 valid = valid & (yy_0 >= 0)
-valid = valid & ((yy_0 + args.FOV_Y) < args.IMG_H)
+valid = valid & ((yy_0 + args.FOV_Y - 1) < args.IMG_H)
 ####
 # filter coordinates by valid only
 xx = xx[valid]
@@ -111,7 +111,7 @@ yy = yy[valid]
 xx_0 = xx_0[valid]
 yy_0 = yy_0[valid]
 invalid_count = (valid == 0).sum()
-if invalid_count > 0 and args.unsafe == 0:
+if invalid_count > 0 and args.UNSAFE == 0:
     raise ValueError(
         f"{invalid_count:d} subapertures are invalid, " +
         "increase image ROI"
@@ -128,14 +128,12 @@ if args.plot > 0:
     ####
     import matplotlib.pyplot as plt
     # determine vertices of subapertures (for plotting only)
-    xx_v = np.stack(
-        [xx_0, xx_0+args.FOV_X, xx_0+args.FOV_X, xx_0, xx_0],
-        axis=0
-    )
-    yy_v = np.stack(
-        [yy_0, yy_0, yy_0+args.FOV_Y, yy_0+args.FOV_Y, yy_0],
-        axis=0
-    )
+    xx_v = np.stack([
+        xx_0+0.5, xx_0+args.FOV_X-0.5, xx_0+args.FOV_X-0.5, xx_0+0.5, xx_0+0.5
+    ], axis=0)
+    yy_v = np.stack([
+        yy_0+0.5, yy_0+0.5, yy_0+args.FOV_Y-0.5, yy_0+args.FOV_Y-0.5, yy_0+0.5
+    ], axis=0)
     fig, ax = plt.subplots(1, 2, figsize=[12, 6])
     ax[0].plot(xx.flatten(), yy.flatten(), ".")
     for i in range(xx_v.shape[1]):
@@ -151,25 +149,31 @@ if args.plot > 0:
     plt.tight_layout()
     plt.show()
 
-data = vars(args)
-output = data.pop("output")
-data.pop("plot")
-data["invalid_count"] = invalid_count
-data["overlapping_count"] = overlapping_count
-data["xx_c"] = list(xx)
-data["yy_c"] = list(yy)
-data["xx_0"] = list(xx_0)
-data["xx_0"] = list(yy_0)
+if args.output is not None:
+    data = vars(args)
+    output = data.pop("output")
+    data.pop("plot")
+    data["invalid_count"] = invalid_count
+    data["overlapping_count"] = overlapping_count
+    data["xx_c"] = list(xx)
+    data["yy_c"] = list(yy)
+    data["xx_0"] = list(xx_0)
+    data["xx_0"] = list(yy_0)
 
-if output is not None:
     with open(output, "w") as fp:
         json.dump(data, fp, default=int, indent=4)
-else:
-    print(json.dumps(data, default=int), flush=True)
 
 if args.shmsuffix is not None:
     from pyMilk.interfacing.isio_shmlib import SHM
-    SHM("lut_xx_c_"+args.shmsuffix, xx.astype(np.float32))
-    SHM("lut_yy_c_"+args.shmsuffix, yy.astype(np.float32))
-    SHM("lut_xx_0_"+args.shmsuffix, xx_0.astype(np.uint32))
-    SHM("lut_yy_0_"+args.shmsuffix, yy_0.astype(np.uint32))
+    shm_datas = [
+        ["lut_xx_c_"+args.shmsuffix, xx.astype(np.float32)],
+        ["lut_yy_c_"+args.shmsuffix, yy.astype(np.float32)],
+        ["lut_xx_0_"+args.shmsuffix, xx_0.astype(np.uint32)],
+        ["lut_yy_0_"+args.shmsuffix, yy_0.astype(np.uint32)],
+    ]
+    for shm_data in shm_datas:
+        try:
+            shm = SHM(shm_data[0])
+            shm.set_data(shm_data[1])
+        except FileNotFoundError:
+            SHM(*shm_data)

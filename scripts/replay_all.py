@@ -10,8 +10,8 @@ if __name__ == "__main__":
         SHM(f"lgswfs{n:02d}", ((256, 256), np.float32))
         for n in range(4)
     ]
-    shm_phases = [SHM("phi00", ((64, 64), np.float32))]
-    shm_slopes = SHM("olslopes00", ((slope_buffer.shape[1],), np.float32))
+    shm_phases = [SHM("phi01", ((64, 64), np.float32))]
+    shm_slopes = SHM("olslopes01", ((slope_buffer.shape[1],), np.float32))
     framerate = 100
     t = time.time()
     while True:
