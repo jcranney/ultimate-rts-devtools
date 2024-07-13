@@ -1,32 +1,23 @@
 #!/usr/bin/env python
-import argparse
+"""
+This is spaghetti code that works better than it ought to. It deserves cleaning
+up but that's not a priority. If you would like to understand this code better,
+maybe just email me, jesse.cranney@anu.edu.au
+"""
+
 from pyMilk.interfacing.isio_shmlib import SHM
 import numpy as np
 
-parser = argparse.ArgumentParser("build LUT for WFS subapertures")
-parser.add_argument(
-    "--N_SUBX", type=int, default=32,
-    help="number of subaps across x-dimension"
-)
-parser.add_argument(
-    "--N_SUBY", type=int, default=32,
-    help="number of subaps across y-dimension"
-)
-parser.add_argument(
-    "--MIN_PITCH", type=float, default=6.0,
-    help="spacing of subaperture images in x"
-)
-parser.add_argument(
-    "--MAX_PITCH", type=float, default=10.0,
-    help="spacing of subaperture images in y"
-)
-args = parser.parse_args()
+N_SUBX: int = 32  # number of subaps across x-dimension
+N_SUBY: int = 32  # number of subaps across y-dimension
+MIN_PITCH: float = 6.0  # spacing of subaperture images in x
+MAX_PITCH: float = 10.0  # spacing of subaperture images in y
 
 Ts = 1.0
 N = 2048
 F = N/Ts
-min_freq = int(F/args.MAX_PITCH)
-max_freq = int(F/args.MIN_PITCH)
+min_freq = int(F/MAX_PITCH)
+max_freq = int(F/MIN_PITCH)
 FOV_X: int = 2
 FOV_Y: int = 2
 
@@ -60,7 +51,9 @@ def load_im(idx, nstack=10):
 
 
 ims = [load_im(i) for i in np.arange(5)+1]
-print(f"{'idx':5s} | {'x0':10s} | {'y0':10s} | {'theta':10s} | {'pitchx':10s} | {'pitchy':10s}")
+print(f"{'idx':5s} | {'x0':10s} | {'y0':10s} | "
+      f"{'theta':10s} | {'pitchx':10s} | {'pitchy':10s}")
+
 for im_idx, im in enumerate(ims):
     IMG_H, IMG_W = im.shape
     roi = get_roi(im)
@@ -74,8 +67,8 @@ for im_idx, im in enumerate(ims):
     def build_grid(x0, y0, theta):
         # build cartesian grid, aligned to x/y axes, centred at (0,0)
         xx, yy = np.meshgrid(
-            (np.arange(args.N_SUBX)-args.N_SUBX/2+0.5)*PITCH_X,
-            (np.arange(args.N_SUBY)-args.N_SUBY/2+0.5)*PITCH_Y,
+            (np.arange(N_SUBX)-N_SUBX/2+0.5)*PITCH_X,
+            (np.arange(N_SUBY)-N_SUBY/2+0.5)*PITCH_Y,
             indexing="xy"
         )
         xx = xx.flatten()
@@ -102,7 +95,7 @@ for im_idx, im in enumerate(ims):
     x0s, y0s, thetas = np.meshgrid(
         np.linspace(-40, 40, 161),
         np.linspace(-40, 40, 161),
-        [0.0]
+        [0.0]  # don't bother tuning theta, it's currently close enough to 0
     )
     x0s = x0s.flatten()
     y0s = y0s.flatten()
