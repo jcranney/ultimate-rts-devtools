@@ -34,7 +34,7 @@
 
 // TODO: check YON/OGU when to define this (compile vs runtime?)
 const uint32_t N_SUBX = 32;
-const uint32_t FOV_X = 8;
+const uint32_t FOV_X = 6;
 const char* RAW_IMG_STREAM = "scmos1_data";
 const char* BG_IMG_STREAM = "scmos1_bg";
 const char* WFS_ID = "01"; // <- this is gradually being deprecated
