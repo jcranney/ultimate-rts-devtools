@@ -164,6 +164,7 @@ if args.output is not None:
         json.dump(data, fp, default=int, indent=4)
 
 if args.shmsuffix is not None:
+    print(f"saving {args.shmsuffix}")
     from pyMilk.interfacing.isio_shmlib import SHM
     shm_datas = [
         ["lut_xx_c_"+args.shmsuffix, xx.astype(np.float32)],

@@ -1,15 +1,5 @@
 {
   "wfs_streams" : [
-   "flux01",
-   "flux02",
-   "flux03",
-   "flux04",
-   "flux05",
-   "slopemap01",
-   "slopemap02",
-   "slopemap03",
-   "slopemap04",
-   "slopemap05"
   ],
   "slope_streams" : [
   ]
