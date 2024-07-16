@@ -37,12 +37,16 @@ WFS_STREAMS=($(jq -r '.wfs_streams | .[]' $CONF_FILE))
 SLOPE_STREAMS=($(jq -r '.slope_streams | .[]' $CONF_FILE))
 
 # Create windows and panes
-make clean
-make all
+mkdir -p _build
+cd _build
+cmake ..
+make
+cd ..
 sh ./scripts/load_subap_lut.sh
 python ./scripts/init_shm_centroiding.py
 python ./scripts/init_valid.py
 tmux rename-window -t $SESSION_NAME:0 "centroider"
+tmux send-keys "cd _build" C-m
 tmux send-keys "./centroider1 &" C-m
 tmux send-keys "./centroider2 &" C-m
 tmux send-keys "./centroider3 &" C-m

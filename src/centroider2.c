@@ -28,8 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include "ImageStruct.h"
-#include "ImageStreamIO.h"
+#include "CommandLineInterface/CLIcore.h"
 #include <string.h>
 
 // TODO: check YON/OGU when to define this (compile vs runtime?)

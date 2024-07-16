@@ -5,4 +5,5 @@ scmos_data/
 __pycache__/
 *.log
 build/
+_build/
 centroider
