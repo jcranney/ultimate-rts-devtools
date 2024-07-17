@@ -108,9 +108,6 @@ static errno_t init_module_CLI()
 
     //	ltaomod_centroider__updatestreamloop_addCLIcmd();
 
-    CLIADDCMD_ltaomod_centroider__simplefunc();
-    CLIADDCMD_ltaomod_centroider__simplefunc_FPS();
-    CLIADDCMD_ltaomod_centroider__updatestreamloop();
     CLIADDCMD_ltaomod_centroider__streamprocess();
     CLIADDCMD_ltaomod_centroider__helloworld();
 

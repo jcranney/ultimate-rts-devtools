@@ -8,11 +8,7 @@
 #include "CommandLineInterface/CLIcore.h"
 
 // Local variables pointers
-
-static char *inimname;
-
-static LOCVAR_OUTIMG2D outim;
-
+static uint32_t *loopnumber;
 
 static uint32_t *cntindex;
 static long      fpi_cntindex = -1;
@@ -31,16 +27,15 @@ static long     fpi_ex1mode = -1;
 static CLICMDARGDEF farg[] =
 {
     {
-        CLIARG_IMG,
-        ".in_name",
-        "input image",
-        "im1",
+        CLIARG_UINT32,
+        ".loopnumber",
+        "loop number",
+        "1",
         CLIARG_VISIBLE_DEFAULT,
-        (void **) &inimname,
+        (void **) &loopnumber,
         NULL
     },
-    FARG_OUTIM2D(outim),
-    {
+        {
         CLIARG_UINT32,
         ".cntindex",
         "counter index",
@@ -88,14 +83,6 @@ static CLICMDARGDEF farg[] =
 //
 static errno_t customCONFsetup()
 {
-    // increment counter at every configuration check
-    *cntindex = *cntindex + 1;
-
-    if(*cntindex >= *cntindexmax)
-    {
-        *cntindex = 0;
-    }
-
     return RETURN_SUCCESS;
 }
 
@@ -109,29 +96,6 @@ static errno_t customCONFsetup()
 //
 static errno_t customCONFcheck()
 {
-    if(data.fpsptr != NULL)
-    {
-        if(data.fpsptr->parray[fpi_ex0mode].fpflag & FPFLAG_ONOFF)  // ON state
-        {
-            data.fpsptr->parray[fpi_ex1mode].fpflag |= FPFLAG_USED;
-            data.fpsptr->parray[fpi_ex1mode].fpflag |= FPFLAG_VISIBLE;
-        }
-        else // OFF state
-        {
-            data.fpsptr->parray[fpi_ex1mode].fpflag &= ~FPFLAG_USED;
-            data.fpsptr->parray[fpi_ex1mode].fpflag &= ~FPFLAG_VISIBLE;
-        }
-
-        // increment counter at every configuration check
-        *cntindex = *cntindex + 1;
-
-        if(*cntindex >= *cntindexmax)
-        {
-            *cntindex = 0;
-        }
-
-    }
-
     return RETURN_SUCCESS;
 }
 
@@ -140,7 +104,7 @@ static CLICMDDATA CLIcmddata =
 {
     "helloworld",
     "toy function for experimenting with milk",
-    CLICMD_FIELDS_DEFAULTS
+    CLICMD_FIELDS_FPSPROC
 };
 
 
@@ -164,33 +128,38 @@ static errno_t helloworld(
 
     // resolve imgpos
     resolveIMGID(inimg, ERRMODE_ABORT);
+    
+    // Create output image if needed
+    imcreateIMGID(outimg);
+    
+    outimg[0].md->write = 1;
+    outimg[0].im->array.F[0] = 0.0;
     for (int i=0; i<inimg[0].size[0]*inimg[0].size[1]; i++){
 	    outimg[0].im->array.F[0] = inimg[0].im->array.F[i];
     }
     
-    // Create output image if needed
-    imcreateIMGID(outimg);
 
 
     DEBUG_TRACE_FEXIT();
     return RETURN_SUCCESS;
 }
 
-
-
-
 static errno_t compute_function()
 {
     DEBUG_TRACE_FSTART();
-
-    IMGID inimg = mkIMGID_from_name(inimname);
-    resolveIMGID(&inimg, ERRMODE_ABORT);
-
-    // link/create output image/stream
-    FARG_OUTIM2DCREATE(outim, outimg, _DATATYPE_FLOAT);
-
-
-
+    IMGID inimg;
+    {
+        char name[STRINGMAXLEN_STREAMNAME];
+        WRITE_IMAGENAME(name, "scmos%u_data", *loopnumber);
+        inimg = stream_connect(name);
+    }
+    IMGID outimg;
+    {
+        char name[STRINGMAXLEN_STREAMNAME];
+        WRITE_IMAGENAME(name, "bob%u", *loopnumber);
+        outimg = stream_connect_create_2Df32(name, 10, 10);
+    }
+    list_image_ID();
 
     printf(" COMPUTE Flags = %ld\n", CLIcmddata.cmdsettings->flags);
     INSERT_STD_PROCINFO_COMPUTEFUNC_INIT
@@ -200,6 +169,11 @@ static errno_t compute_function()
     if(CLIcmddata.cmdsettings->flags & CLICMDFLAG_PROCINFO)
     {
         // procinfo is accessible here
+        CLIcmddata.cmdsettings->triggermode = 3;
+        CLIcmddata.cmdsettings->procinfo_loopcntMax = -1;
+        char name[STRINGMAXLEN_STREAMNAME];
+        WRITE_IMAGENAME(name, "scmos%u_data", *loopnumber);
+        strcpy(CLIcmddata.cmdsettings->triggerstreamname, name);
     }
 
     // If custom initialization with access to procinfo is not required

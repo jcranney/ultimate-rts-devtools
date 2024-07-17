@@ -8,20 +8,7 @@
 #include "CommandLineInterface/CLIcore.h"
 
 // Local variables pointers
-
-static char *in_im_name;
-static char *wfs_valid_name;
-static char *subap_lut_x_name;
-static char *subap_lut_y_name;
-long fpi_in_im_name;
-long fpi_wfs_valid_name;
-long fpi_subap_lut_x_name;
-long fpi_subap_lut_y_name;
-
-static LOCVAR_OUTIMG2D fluxmap_im;
-//static LOCVAR_OUTIMG2D slopemap_im;
-//static LOCVAR_OUTIMG2D slopevec_im;
-
+static uint32_t *loopnumber;
 
 static uint32_t *cntindex;
 static long      fpi_cntindex = -1;
@@ -40,44 +27,14 @@ static long     fpi_ex1mode = -1;
 static CLICMDARGDEF farg[] =
 {
     {
-        CLIARG_IMG,
-        ".in_img",
-        "input wfs image",
-        "scmos1_data",
+        CLIARG_UINT32,
+        ".loopnumber",
+        "loop number",
+        "1",
         CLIARG_VISIBLE_DEFAULT,
-        (void **) &in_im_name,
-        &fpi_in_im_name
-    },
-    {
-        CLIARG_IMG,
-        ".wfs_valid_name",
-        "valid subaperture map",
-        "wfs_valid01",
-        CLIARG_VISIBLE_DEFAULT,
-        (void **) &wfs_valid_name,
+        (void **) &loopnumber,
         NULL
     },
-    {
-        CLIARG_IMG,
-        ".subap_lut_x_name",
-        "valid subaperture pixel LUT",
-        "subap_lut_x01",
-        CLIARG_VISIBLE_DEFAULT,
-        (void **) &subap_lut_x_name,
-        NULL
-    },
-    {
-        CLIARG_IMG,
-        ".subap_lut_y_name",
-        "valid subaperture pixel LUT",
-        "subap_lut_y01",
-        CLIARG_VISIBLE_DEFAULT,
-        (void **) &subap_lut_y_name,
-        NULL
-    },
-    FARG_OUTIM2D(fluxmap_im),
-    //FARG_OUTIM2D(slopemap_im),
-    //FARG_OUTIM2D(slopevec_im),
     {
         CLIARG_UINT32,
         ".cntindex",
@@ -126,15 +83,6 @@ static CLICMDARGDEF farg[] =
 //
 static errno_t customCONFsetup()
 {
-    // increment counter at every configuration check
-    *cntindex = *cntindex + 1;
-
-    if(*cntindex >= *cntindexmax)
-    {
-        *cntindex = 0;
-    }
-
-    return RETURN_SUCCESS;
 }
 
 // Optional custom configuration checks
@@ -147,29 +95,6 @@ static errno_t customCONFsetup()
 //
 static errno_t customCONFcheck()
 {
-    if(data.fpsptr != NULL)
-    {
-        if(data.fpsptr->parray[fpi_ex0mode].fpflag & FPFLAG_ONOFF)  // ON state
-        {
-            data.fpsptr->parray[fpi_ex1mode].fpflag |= FPFLAG_USED;
-            data.fpsptr->parray[fpi_ex1mode].fpflag |= FPFLAG_VISIBLE;
-        }
-        else // OFF state
-        {
-            data.fpsptr->parray[fpi_ex1mode].fpflag &= ~FPFLAG_USED;
-            data.fpsptr->parray[fpi_ex1mode].fpflag &= ~FPFLAG_VISIBLE;
-        }
-
-        // increment counter at every configuration check
-        *cntindex = *cntindex + 1;
-
-        if(*cntindex >= *cntindexmax)
-        {
-            *cntindex = 0;
-        }
-
-    }
-
     return RETURN_SUCCESS;
 }
 
@@ -178,7 +103,7 @@ static CLICMDDATA CLIcmddata =
 {
     "centroider",
     "calculate centroids from WFS image",
-    CLICMD_FIELDS_DEFAULTS
+    CLICMD_FIELDS_FPSPROC
 };
 
 
@@ -194,8 +119,8 @@ static errno_t help_function()
 static errno_t streamprocess(
     IMGID *wfs_img, // wfs raw image
     IMGID *flux_map, // flux map
-//    IMGID *slope_map, // slope map
-//    IMGID *slope_vec, // slope vec
+    IMGID *slope_map, // slope map
+    IMGID *slope_vec, // slope vec
     IMGID *wfs_valid,
     IMGID *subap_lut_x,
     IMGID *subap_lut_y
@@ -204,21 +129,28 @@ static errno_t streamprocess(
     DEBUG_TRACE_FSTART();
     // custom stream process function code
 
-
     // resolve imgpos
     resolveIMGID(wfs_img, ERRMODE_ABORT);
+
+    // Create output image if needed
     imcreateIMGID(flux_map);
+    imcreateIMGID(slope_map);
+    imcreateIMGID(slope_vec);
+
+    flux_map->md->write = 1;
+    slope_map->md->write = 1;
+    slope_vec->md->write = 1;
 
     const int N_SUBX = 32;
     const int FOV_X = 6;
     const float COG_THRESH = 0.0;
 
-	//uint32_t n_valid = 0;
-	//for (int i=0; i<N_SUBX*N_SUBX; i++){
-	//	n_valid += (wfs_valid[0].im->array.UI8[i]==1) ? 1 : 0;
-	//}
+	uint32_t n_valid = 0;
+	for (int i=0; i<N_SUBX*N_SUBX; i++){
+		n_valid += (wfs_valid[0].im->array.UI8[i]==1) ? 1 : 0;
+	}
 
-	//uint32_t valid_idx = 0;
+	uint32_t valid_idx = 0;
 	for (int i=0; i<N_SUBX*N_SUBX; i++){
 		//if (wfs_valid[0].im->array.UI8[i]==0) {
 		//	continue;
@@ -250,26 +182,17 @@ static errno_t streamprocess(
 				intensity += pixel;
 			}
 		}
-		//slope_vec[0].im->array.F[valid_idx] = intensityx /(intensity+1e-4) - (float) FOV_X/2.0 + 0.5;;
-		//slope_vec[0].im->array.F[valid_idx+n_valid] = intensityy /(intensity+1e-4) - (float) FOV_X/2.0 + 0.5;;
-		//slope_map[0].im->array.F[i] = slope_vec[0].im->array.F[valid_idx];
-		//slope_map[0].im->array.F[i+N_SUBX*N_SUBX] = slope_vec[0].im->array.F[valid_idx+n_valid];
+		slope_vec[0].im->array.F[valid_idx] = intensityx /(intensity+1e-4) - (float) FOV_X/2.0 + 0.5;;
+		slope_vec[0].im->array.F[valid_idx+n_valid] = intensityy /(intensity+1e-4) - (float) FOV_X/2.0 + 0.5;;
+		slope_map[0].im->array.F[i] = slope_vec[0].im->array.F[valid_idx];
+		slope_map[0].im->array.F[i+N_SUBX*N_SUBX] = slope_vec[0].im->array.F[valid_idx+n_valid];
 		flux_map[0].im->array.F[i] = intensity;
-		//valid_idx++;
+		valid_idx++;
 	}
-	//for (int i=2*valid_idx; i<(2*N_SUBX*N_SUBX); i++){
-		//slope_vec[0].im->array.F[i] = 0.0;
-	//}
+	for (int i=2*valid_idx; i<(2*N_SUBX*N_SUBX); i++){
+		slope_vec[0].im->array.F[i] = 0.0;
+	}
     
-    //for (int i=0; i<wfsimg[0].size[0]*wfsimg[0].size[1]; i++){
-	//    fluxmap[0].im->array.F[0] = wfsimg[0].im->array.F[i];
-    //}
-    
-    // Create output image if needed
-    //imcreateIMGID(slope_map);
-    //imcreateIMGID(slope_vec);
-
-
     DEBUG_TRACE_FEXIT();
     return RETURN_SUCCESS;
 }
@@ -281,22 +204,49 @@ static errno_t compute_function()
 {
     DEBUG_TRACE_FSTART();
 
-    IMGID in_img = mkIMGID_from_name(in_im_name);
-    resolveIMGID(&in_img, ERRMODE_ABORT);
-
-    IMGID wfs_valid = mkIMGID_from_name(wfs_valid_name);
-    resolveIMGID(&wfs_valid, ERRMODE_ABORT);
-    
-    IMGID subap_lut_x = mkIMGID_from_name(subap_lut_x_name);
-    resolveIMGID(&subap_lut_x, ERRMODE_ABORT);
-    
-    IMGID subap_lut_y = mkIMGID_from_name(subap_lut_y_name);
-    resolveIMGID(&subap_lut_y, ERRMODE_ABORT);
-
-    // link/create output image/stream
-    FARG_OUTIM2DCREATE(fluxmap_im, flux_map, _DATATYPE_FLOAT);
-    //FARG_OUTIM2DCREATE(slopemap_im, slope_map, _DATATYPE_FLOAT);
-    //FARG_OUTIM2DCREATE(slopevec_im, slope_vec, _DATATYPE_FLOAT);
+    IMGID wfs_img;
+    {
+        char name[STRINGMAXLEN_STREAMNAME];
+        WRITE_IMAGENAME(name, "scmos%u_data", *loopnumber);
+        wfs_img = stream_connect(name);
+    }
+    IMGID wfs_valid;
+    {
+        char name[STRINGMAXLEN_STREAMNAME];
+        WRITE_IMAGENAME(name, "wfsvalid%02u", *loopnumber);
+        wfs_valid = stream_connect(name);
+    }
+    IMGID subap_lut_x;
+    {
+        char name[STRINGMAXLEN_STREAMNAME];
+        WRITE_IMAGENAME(name, "lut_xx_0_lgs%02u", *loopnumber);
+        subap_lut_x = stream_connect(name);
+    }
+    IMGID subap_lut_y;
+    {
+        char name[STRINGMAXLEN_STREAMNAME];
+        WRITE_IMAGENAME(name, "lut_yy_0_lgs%02u", *loopnumber);
+        subap_lut_y = stream_connect(name);
+    }
+    IMGID flux_map;
+    {
+        char name[STRINGMAXLEN_STREAMNAME];
+        WRITE_IMAGENAME(name, "flux%02u", *loopnumber);
+        flux_map = stream_connect_create_2Df32(name, 32, 32);
+    }
+    IMGID slope_map;
+    {
+        char name[STRINGMAXLEN_STREAMNAME];
+        WRITE_IMAGENAME(name, "slopemap%02u", *loopnumber);
+        slope_map = stream_connect_create_2Df32(name, 32, 64);
+    }
+    IMGID slope_vec;
+    {
+        char name[STRINGMAXLEN_STREAMNAME];
+        WRITE_IMAGENAME(name, "slopevec%02u", *loopnumber);
+        slope_vec = stream_connect_create_2Df32(name, 1024, 1);
+    }
+    list_image_ID();
 
     printf(" COMPUTE Flags = %ld\n", CLIcmddata.cmdsettings->flags);
     INSERT_STD_PROCINFO_COMPUTEFUNC_INIT
@@ -306,6 +256,11 @@ static errno_t compute_function()
     if(CLIcmddata.cmdsettings->flags & CLICMDFLAG_PROCINFO)
     {
         // procinfo is accessible here
+        CLIcmddata.cmdsettings->triggermode = 3;
+        CLIcmddata.cmdsettings->procinfo_loopcntMax = -1;
+        char name[STRINGMAXLEN_STREAMNAME];
+        WRITE_IMAGENAME(name, "scmos%u_data", *loopnumber);
+        strcpy(CLIcmddata.cmdsettings->triggerstreamname, name);
     }
 
     // If custom initialization with access to procinfo is not required
@@ -318,7 +273,7 @@ static errno_t compute_function()
     INSERT_STD_PROCINFO_COMPUTEFUNC_LOOPSTART
     {
 
-        streamprocess(&in_img, &flux_map,
+        streamprocess(&wfs_img, &flux_map, &slope_map, &slope_vec,
                     &wfs_valid, &subap_lut_x, &subap_lut_y);
         //streamprocess(&in_img, &flux_map, &slope_map, &slope_vec,
         //            &wfs_valid, &subap_lut_x, &subap_lut_y);
@@ -326,9 +281,8 @@ static errno_t compute_function()
         // stream is updated here, and not in the function called above, so that multiple
         // the above function can be chained with others
         processinfo_update_output_stream(processinfo, flux_map.ID);
-        //processinfo_update_output_stream(processinfo, slope_map.ID);
-        //processinfo_update_output_stream(processinfo, slope_vec.ID);
-
+        processinfo_update_output_stream(processinfo, slope_map.ID);
+        processinfo_update_output_stream(processinfo, slope_vec.ID);
     }
     INSERT_STD_PROCINFO_COMPUTEFUNC_END
 
