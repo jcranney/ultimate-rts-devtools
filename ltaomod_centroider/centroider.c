@@ -9,19 +9,13 @@
 
 // Local variables pointers
 static uint32_t *loopnumber;
-
-static uint32_t *cntindex;
-static long      fpi_cntindex = -1;
-
-static uint32_t *cntindexmax;
-static long      fpi_cntindexmax = -1;
-
-static int64_t *ex0mode;
-static long     fpi_ex0mode = -1;
-
-static int64_t *ex1mode;
-static long     fpi_ex1mode = -1;
-
+static uint32_t *width;
+static uint32_t *height;
+static uint32_t *nsubx;
+static uint32_t *nsuby;
+static uint32_t *fovx;
+static uint32_t *fovy;
+static float *thresh;
 
 
 static CLICMDARGDEF farg[] =
@@ -37,67 +31,71 @@ static CLICMDARGDEF farg[] =
     },
     {
         CLIARG_UINT32,
-        ".cntindex",
-        "counter index",
-        "5",
+        ".width",
+        "width of input image",
+        "256",
         CLIARG_HIDDEN_DEFAULT,
-        (void **) &cntindex,
-        &fpi_cntindex
+        (void **) &width,
+        NULL
     },
     {
         CLIARG_UINT32,
-        ".cntindexmax",
-        "counter index max value",
-        "100",
+        ".height",
+        "height of input image",
+        "256",
         CLIARG_HIDDEN_DEFAULT,
-        (void **) &cntindexmax,
-        &fpi_cntindexmax
+        (void **) &height,
+        NULL
     },
     {
-        CLIARG_ONOFF,
-        ".option.ex0mode",
-        "toggle0",
-        "0",
+        CLIARG_UINT32,
+        ".nsubx",
+        "number of subapertures in x-dimension",
+        "32",
         CLIARG_HIDDEN_DEFAULT,
-        (void **) &ex0mode,
-        &fpi_ex0mode
+        (void **) &height,
+        NULL
     },
     {
-        CLIARG_ONOFF,
-        ".option.ex1mode",
-        "toggle1 conditional on toggle0",
-        "0",
+        CLIARG_UINT32,
+        ".nsuby",
+        "number of subapertures in y-dimension",
+        "32",
         CLIARG_HIDDEN_DEFAULT,
-        (void **) &ex1mode,
-        &fpi_ex1mode
-    }
+        (void **) &height,
+        NULL
+    },
+    {
+        CLIARG_UINT32,
+        ".fovx",
+        "FOV of each subaperture in pixels (x-dim)",
+        "6",
+        CLIARG_HIDDEN_DEFAULT,
+        (void **) &fovx,
+        NULL
+    },
+    {
+        CLIARG_UINT32,
+        ".fovy",
+        "FOV of each subaperture in pixels (y-dim)",
+        "6",
+        CLIARG_HIDDEN_DEFAULT,
+        (void **) &fovy,
+        NULL
+    },
+    {
+        CLIARG_FLOAT,
+        ".cogthresh",
+        "height of input image",
+        "0.0",
+        CLIARG_HIDDEN_DEFAULT,
+        (void **) &thresh,
+        NULL
+    },
 };
 
-// Optional custom configuration setup
-// Runs once at conf startup
-//
-// To use this function, set :
-// CLIcmddata.FPS_customCONFsetup = customCONFsetup
-// when registering function
-// (see end of this file)
-//
-static errno_t customCONFsetup()
-{
-}
-
-// Optional custom configuration checks
-// Runs at every configuration check loop iteration
-//
-// To use this function, set :
-// CLIcmddata.FPS_customCONFcheck = customCONFcheck
-// when registering function
-// (see end of this file)
-//
-static errno_t customCONFcheck()
-{
-    return RETURN_SUCCESS;
-}
-
+static errno_t customCONFsetup(){return RETURN_SUCCESS;}
+static errno_t customCONFcheck(){return RETURN_SUCCESS;}
 
 static CLICMDDATA CLIcmddata =
 {
@@ -106,24 +104,18 @@ static CLICMDDATA CLIcmddata =
     CLICMD_FIELDS_FPSPROC
 };
 
-
-
 // detailed help
 static errno_t help_function()
 {
     return RETURN_SUCCESS;
 }
 
-
-
-static errno_t streamprocess(
+static errno_t docentroids(
     IMGID *wfs_img, // wfs raw image
     IMGID *flux_map, // flux map
     IMGID *slope_map, // slope map
-    IMGID *slope_vec, // slope vec
-    IMGID *wfs_valid,
-    IMGID *subap_lut_x,
-    IMGID *subap_lut_y
+    IMGID *subap_lut_x, // pixel position (x) of centre of subap
+    IMGID *subap_lut_y // pixel position (y) of centre of subap
 )
 {
     DEBUG_TRACE_FSTART();
@@ -135,27 +127,15 @@ static errno_t streamprocess(
     // Create output image if needed
     imcreateIMGID(flux_map);
     imcreateIMGID(slope_map);
-    imcreateIMGID(slope_vec);
 
     flux_map->md->write = 1;
     slope_map->md->write = 1;
-    slope_vec->md->write = 1;
 
     const int N_SUBX = 32;
     const int FOV_X = 6;
     const float COG_THRESH = 0.0;
 
-	uint32_t n_valid = 0;
 	for (int i=0; i<N_SUBX*N_SUBX; i++){
-		n_valid += (wfs_valid[0].im->array.UI8[i]==1) ? 1 : 0;
-	}
-
-	uint32_t valid_idx = 0;
-	for (int i=0; i<N_SUBX*N_SUBX; i++){
-		//if (wfs_valid[0].im->array.UI8[i]==0) {
-		//	continue;
-		//}
-		// we're doing a valid subap
 		float intensityx = 0.0;
 		float intensityy = 0.0;
 		float intensity = 0.0;
@@ -176,29 +156,19 @@ static errno_t streamprocess(
 						pixel = 0.0;
 					}
 				}
-				// TODO dead pixels interpolation
 				intensityx += pixel * (float) iii;
 				intensityy += pixel * (float) jjj;
 				intensity += pixel;
 			}
 		}
-		slope_vec[0].im->array.F[valid_idx] = intensityx /(intensity+1e-4) - (float) FOV_X/2.0 + 0.5;;
-		slope_vec[0].im->array.F[valid_idx+n_valid] = intensityy /(intensity+1e-4) - (float) FOV_X/2.0 + 0.5;;
-		slope_map[0].im->array.F[i] = slope_vec[0].im->array.F[valid_idx];
-		slope_map[0].im->array.F[i+N_SUBX*N_SUBX] = slope_vec[0].im->array.F[valid_idx+n_valid];
+		slope_map[0].im->array.F[i] = intensityx /(intensity+1e-4) - (float) FOV_X/2.0 + 0.5;
+		slope_map[0].im->array.F[i+N_SUBX*N_SUBX] = intensityy /(intensity+1e-4) - (float) FOV_X/2.0 + 0.5;
 		flux_map[0].im->array.F[i] = intensity;
-		valid_idx++;
-	}
-	for (int i=2*valid_idx; i<(2*N_SUBX*N_SUBX); i++){
-		slope_vec[0].im->array.F[i] = 0.0;
 	}
     
     DEBUG_TRACE_FEXIT();
     return RETURN_SUCCESS;
 }
-
-
-
 
 static errno_t compute_function()
 {
@@ -209,12 +179,6 @@ static errno_t compute_function()
         char name[STRINGMAXLEN_STREAMNAME];
         WRITE_IMAGENAME(name, "scmos%u_data", *loopnumber);
         wfs_img = stream_connect(name);
-    }
-    IMGID wfs_valid;
-    {
-        char name[STRINGMAXLEN_STREAMNAME];
-        WRITE_IMAGENAME(name, "wfsvalid%02u", *loopnumber);
-        wfs_valid = stream_connect(name);
     }
     IMGID subap_lut_x;
     {
@@ -239,12 +203,6 @@ static errno_t compute_function()
         char name[STRINGMAXLEN_STREAMNAME];
         WRITE_IMAGENAME(name, "slopemap%02u", *loopnumber);
         slope_map = stream_connect_create_2Df32(name, 32, 64);
-    }
-    IMGID slope_vec;
-    {
-        char name[STRINGMAXLEN_STREAMNAME];
-        WRITE_IMAGENAME(name, "slopevec%02u", *loopnumber);
-        slope_vec = stream_connect_create_2Df32(name, 1024, 1);
     }
     list_image_ID();
 
@@ -273,16 +231,10 @@ static errno_t compute_function()
     INSERT_STD_PROCINFO_COMPUTEFUNC_LOOPSTART
     {
 
-        streamprocess(&wfs_img, &flux_map, &slope_map, &slope_vec,
-                    &wfs_valid, &subap_lut_x, &subap_lut_y);
-        //streamprocess(&in_img, &flux_map, &slope_map, &slope_vec,
-        //            &wfs_valid, &subap_lut_x, &subap_lut_y);
-
-        // stream is updated here, and not in the function called above, so that multiple
-        // the above function can be chained with others
+        docentroids(&wfs_img, &flux_map, &slope_map,
+                    &subap_lut_x, &subap_lut_y);
         processinfo_update_output_stream(processinfo, flux_map.ID);
         processinfo_update_output_stream(processinfo, slope_map.ID);
-        processinfo_update_output_stream(processinfo, slope_vec.ID);
     }
     INSERT_STD_PROCINFO_COMPUTEFUNC_END
 
@@ -298,7 +250,7 @@ INSERT_STD_FPSCLIfunctions
 
 // Register function in CLI
 errno_t
-CLIADDCMD_ltaomod_centroider__streamprocess()
+CLIADDCMD_ltaomod_centroider__docentroids()
 {
     CLIcmddata.FPS_customCONFsetup = customCONFsetup;
     CLIcmddata.FPS_customCONFcheck = customCONFcheck;

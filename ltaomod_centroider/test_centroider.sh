@@ -13,12 +13,6 @@ tmux new-session -d -s $SESSION_NAME
 tmux send-keys "cd .." C-m "scripts/start_replay.sh" C-m
 sleep 1
 
-cd _build
-cmake .. --install-prefix=/usr/local/milk-1.03.00
-make
-sudo make install
-cd ..
-
 tmux new-window -t $SESSION_NAME:
 for LOOP in 1 2 3 4 5
 do
@@ -30,4 +24,3 @@ do
 done
 
 sleep 1
-milk-fpsCTRL

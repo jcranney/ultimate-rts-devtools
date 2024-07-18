@@ -58,7 +58,7 @@
 #define MODULE_SHORTNAME_DEFAULT "ltao"
 
 // Module short description
-#define MODULE_DESCRIPTION "Example module: template for creating new modules"
+#define MODULE_DESCRIPTION "LTAO Module: SHWFSing for tomographic AO"
 
 /* ================================================================== */
 /* ================================================================== */
@@ -74,11 +74,6 @@
 //
 #include "centroider.h"
 #include "helloworld.h"
-
-//#include "create_example_image.h"
-//#include "stream_process_loop_simple.h"
-
-//#include "updatestreamloop_brief.h"
 
 /* ================================================================== */
 /* ================================================================== */
@@ -98,17 +93,11 @@ INIT_MODULE_LIB(ltaomod_centroider)
  * Any other initialization is performed\n
  *
  */
+
 static errno_t init_module_CLI()
 {
 
-    //CLI_CMD_CONNECT("func1", "create_image_with_value");
-
-    //create_example_image_addCLIcmd();
-    //stream_process_loop_simple_addCLIcmd();
-
-    //	ltaomod_centroider__updatestreamloop_addCLIcmd();
-
-    CLIADDCMD_ltaomod_centroider__streamprocess();
+    CLIADDCMD_ltaomod_centroider__docentroids();
     CLIADDCMD_ltaomod_centroider__helloworld();
 
     // optional: add atexit functions here

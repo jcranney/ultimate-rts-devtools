@@ -28,21 +28,21 @@ graph TD
     subgraph A["aquisition PC"]
         style A fill:#777,stroke:#444,stroke-width:2px,color:#fff;
         subgraph sg1[centroid pipeline 1]
-            cal01[calibrator]--clean_frame_01-->cent01[centroider]
+            cal01[calibrator\n+\ncentroider]
         end
-        cent01--slope_vec_01-->concatenator
+        cal01--slope_vec_01-->concatenator
         subgraph sg2[centroid pipeline 2]
-            cal02[calibrator]--clean_frame_02-->cent02[centroider]
+            cal02[calibrator\n+\ncentroider]
         end
-        cent02--slope_vec_02-->concatenator
+        cal02--slope_vec_02-->concatenator
         subgraph sg3[centroid pipeline 3]
-            cal03[calibrator]--clean_frame_03-->cent03[centroider]
+            cal03[calibrator\n+\ncentroider]
         end
-        cent03--slope_vec_03-->concatenator
+        cal03--slope_vec_03-->concatenator
         subgraph sg4[centroid pipeline 4]
-            cal04[calibrator]--clean_frame_04-->cent04[centroider]
+            cal04[calibrator\n+\ncentroider]
         end
-        cent04--slope_vec_04-->concatenator
+        cal04--slope_vec_04-->concatenator
     end
     concatenator--cl_slopes-->RTS
     LGS1--raw_frame_01-->cal01
