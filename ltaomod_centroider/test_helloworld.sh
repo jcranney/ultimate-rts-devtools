@@ -22,12 +22,12 @@ cd ..
 
 
 tmux new-window -t $SESSION_NAME:
-for LOOP in 1 2 3 4 5
+for WFS in 1 2 3 4 5
 do
-    echo "scmos${LOOP}_data"
+    echo "scmos${WFS}_data"
     tmux send-keys "MILKCLI_ADD_LIBS=ltaomodcentroider milk" C-m
-    tmux send-keys "ltao.helloworld ${LOOP}" C-m
-    tmux send-keys "ltao.helloworld _FPSINIT_ \"0${LOOP}\"" C-m
+    tmux send-keys "ltao.helloworld ${WFS}" C-m
+    tmux send-keys "ltao.helloworld _FPSINIT_ \"0${WFS}\"" C-m
     tmux send-keys "exit" C-m
 done
 

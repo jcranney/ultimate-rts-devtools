@@ -24,7 +24,7 @@ static CLICMDARGDEF farg[] =
     {
         CLIARG_UINT32,
         ".wfsnumber",
-        "loop number",
+        "wfs number",
         "1",
         CLIARG_VISIBLE_DEFAULT,
         (void **) &wfsnumber,

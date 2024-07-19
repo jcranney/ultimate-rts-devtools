@@ -1,8 +1,8 @@
 #!/bin/bash
 
-for LOOP in 1 2 3 4 5
+for WFS in 1 2 3 4 5
 do
-    MILK_LOOPNAME="centroider0$LOOP"
+    MILK_LOOPNAME="centroider0$WFS"
     MILK_CMD="mload ltaomodcentroider;ltao.centroider $LOOP;ltao.centroider _FPSINIT_;ltao.centroider _TMUXSTART_;"
     milk-exec -n $MILK_LOOPNAME "$MILK_CMD"
     #milk-exec -n centroider05 "mload ltaomodcentroider; ltao.centroider 5; ltao.centroider _FPSINIT_;"
