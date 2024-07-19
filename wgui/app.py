@@ -21,7 +21,7 @@ def index():
 def gen(prefix="default"):
     shms = None
     try:
-        shms = [SHM(f"{prefix}{i+1:02d}") for i in range(5)]
+        shms = [SHM(f"{prefix}{i:02d}") for i in range(5)]
     except FileNotFoundError:
         print(f"No streams with prefix: {prefix}")
     if shms is None:

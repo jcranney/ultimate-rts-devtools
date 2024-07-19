@@ -22,7 +22,7 @@ cd ..
 
 
 tmux new-window -t $SESSION_NAME:
-for WFS in 1 2 3 4 5
+for WFS in 1 2 3 4 0
 do
     echo "scmos${WFS}_data"
     tmux send-keys "MILKCLI_ADD_LIBS=ltaomodcentroider milk" C-m
