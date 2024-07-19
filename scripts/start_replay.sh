@@ -4,7 +4,11 @@ parent_path=$( cd "$(dirname "${BASH_SOURCE[0]}")" ; pwd -P )
 SESSION_NAME="replay"
 FRAMERATE=30
 
-tmux kill-session -t $SESSION_NAME
+tmux has-session -t $SESSION_NAME 2>/dev/null
+if [ $? == 0 ]; then
+    echo "Session already exists, killing it"
+    tmux kill-session -t $SESSION_NAME
+fi
 
 tmux new-session -d -s $SESSION_NAME
 

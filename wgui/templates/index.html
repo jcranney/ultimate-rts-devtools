@@ -1,0 +1,11 @@
+<html>
+  <head>
+    <title>LTAO Streaming</title>
+  </head>
+  <body style="background-color:darkslategrey; color: aliceblue;">
+    <h4>Flux maps:</h4>
+    <img alt="flux" style="width:1000px" src="{{ url_for('stream') }}?prefix=flux">
+    <h4>Slope maps:</h4>
+    <img alt="slopemap" style="width:1000px" src="{{ url_for('stream') }}?prefix=slopemap">
+  </body>
+</html>

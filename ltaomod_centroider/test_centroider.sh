@@ -1,26 +1,11 @@
 #!/bin/bash
-SESSION_NAME=ltaomodtest
 
-tmux has-session -t $SESSION_NAME 2>/dev/null
-
-if [ $? == 0 ]; then
-    echo "Session already exists, killing it"
-    tmux kill-session -t $SESSION_NAME
-    exit
-fi
-
-tmux new-session -d -s $SESSION_NAME
-tmux send-keys "cd .." C-m "scripts/start_replay.sh" C-m
-sleep 1
-
-tmux new-window -t $SESSION_NAME:
 for LOOP in 1 2 3 4 5
 do
-    echo "scmos${LOOP}_data"
-    tmux send-keys "MILKCLI_ADD_LIBS=ltaomodcentroider milk" C-m
-    tmux send-keys "ltao.centroider ${LOOP}" C-m
-    tmux send-keys "ltao.centroider _FPSINIT_ \"0${LOOP}\"" C-m
-    tmux send-keys "exit" C-m
+    MILK_LOOPNAME="centroider0$LOOP"
+    MILK_CMD="mload ltaomodcentroider;ltao.centroider $LOOP;ltao.centroider _FPSINIT_;ltao.centroider _TMUXSTART_;"
+    milk-exec -n $MILK_LOOPNAME "$MILK_CMD"
+    #milk-exec -n centroider05 "mload ltaomodcentroider; ltao.centroider 5; ltao.centroider _FPSINIT_;"
+    tmux send-keys -t $MILK_LOOPNAME:1 "milk-exec -n $MILK_LOOPNAME \"mload ltaomodcentroider; ltao.centroider _CONFSTART_\"" C-m
+    tmux send-keys -t $MILK_LOOPNAME:2 "milk-exec -n $MILK_LOOPNAME \"mload ltaomodcentroider; ltao.centroider _RUNSTART_\"" C-m
 done
-
-sleep 1
