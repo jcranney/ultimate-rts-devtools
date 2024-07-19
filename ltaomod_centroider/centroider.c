@@ -9,7 +9,7 @@
 #include "math.h"
 
 // Local variables pointers
-static uint32_t *loopnumber;
+static uint32_t *wfsnumber;
 static uint32_t *nsubx;
 static uint32_t *nsuby;
 static uint32_t *fovx;
@@ -23,11 +23,11 @@ static CLICMDARGDEF farg[] =
 {
     {
         CLIARG_UINT32,
-        ".loopnumber",
+        ".wfsnumber",
         "loop number",
         "1",
         CLIARG_VISIBLE_DEFAULT,
-        (void **) &loopnumber,
+        (void **) &wfsnumber,
         NULL
     },
     {
@@ -157,7 +157,7 @@ static errno_t docentroids(
 	for (int i=0; i<nsubx*nsuby; i++){
 		float intensityx = 0.0;
 		float intensityy = 0.0;
-		float intensity = 1e-5;
+		float intensity = 0.0;
 		float xc = subap_lut_x[0].im->array.F[i];
 	    float yc = subap_lut_y[0].im->array.F[i];
         uint32_t x0 = round(xc - fovx/2);
@@ -183,8 +183,8 @@ static errno_t docentroids(
 				intensity += pixel;
 			}
 		}
-		slope_map[0].im->array.F[i] = intensityx/intensity - x_offset;
-		slope_map[0].im->array.F[i+nsubx*nsuby] = intensityy/intensity - y_offset;
+		slope_map[0].im->array.F[i] = intensityx/(intensity+1e-5) - x_offset;
+		slope_map[0].im->array.F[i+nsubx*nsuby] = intensityy/(intensity+1e-5) - y_offset;
 		flux_map[0].im->array.F[i] = intensity;
 	}
     
@@ -245,43 +245,43 @@ static errno_t compute_function()
     IMGID wfs_img;
     {
         char name[STRINGMAXLEN_STREAMNAME];
-        WRITE_IMAGENAME(name, "scmos%u_data", *loopnumber);
+        WRITE_IMAGENAME(name, "scmos%u_data", *wfsnumber);
         wfs_img = stream_connect(name);
     }
     IMGID subap_lut_x;
     {
         char name[STRINGMAXLEN_STREAMNAME];
-        WRITE_IMAGENAME(name, "lut_xx_c_lgs%02u", *loopnumber);
+        WRITE_IMAGENAME(name, "lut_xx_c_lgs%02u", *wfsnumber);
         subap_lut_x = stream_connect(name);
     }
     IMGID subap_lut_y;
     {
         char name[STRINGMAXLEN_STREAMNAME];
-        WRITE_IMAGENAME(name, "lut_yy_c_lgs%02u", *loopnumber);
+        WRITE_IMAGENAME(name, "lut_yy_c_lgs%02u", *wfsnumber);
         subap_lut_y = stream_connect(name);
     }
     IMGID wfs_flat;
     {
         char name[STRINGMAXLEN_STREAMNAME];
-        WRITE_IMAGENAME(name, "wfsflat%02u", *loopnumber);
+        WRITE_IMAGENAME(name, "wfsflat%02u", *wfsnumber);
         wfs_flat = stream_connect(name);
     }
     IMGID wfs_bg;
     {
         char name[STRINGMAXLEN_STREAMNAME];
-        WRITE_IMAGENAME(name, "scmos%u_bg", *loopnumber);
+        WRITE_IMAGENAME(name, "scmos%u_bg", *wfsnumber);
         wfs_bg = stream_connect(name);
     }
     IMGID flux_map;
     {
         char name[STRINGMAXLEN_STREAMNAME];
-        WRITE_IMAGENAME(name, "flux%02u", *loopnumber);
+        WRITE_IMAGENAME(name, "flux%02u", *wfsnumber);
         flux_map = stream_connect_create_2Df32(name, 32, 32);
     }
     IMGID slope_map;
     {
         char name[STRINGMAXLEN_STREAMNAME];
-        WRITE_IMAGENAME(name, "slopemap%02u", *loopnumber);
+        WRITE_IMAGENAME(name, "slopemap%02u", *wfsnumber);
         slope_map = stream_connect_create_2Df32(name, 32, 64);
     }
     list_image_ID();
@@ -297,7 +297,7 @@ static errno_t compute_function()
         CLIcmddata.cmdsettings->triggermode = 3;
         CLIcmddata.cmdsettings->procinfo_loopcntMax = -1;
         char name[STRINGMAXLEN_STREAMNAME];
-        WRITE_IMAGENAME(name, "scmos%u_data", *loopnumber);
+        WRITE_IMAGENAME(name, "scmos%u_data", *wfsnumber);
         strcpy(CLIcmddata.cmdsettings->triggerstreamname, name);
     }
 

@@ -8,7 +8,7 @@
 #include "CommandLineInterface/CLIcore.h"
 
 // Local variables pointers
-static uint32_t *loopnumber;
+static uint32_t *wfsnumber;
 
 static uint32_t *cntindex;
 static long      fpi_cntindex = -1;
@@ -28,11 +28,11 @@ static CLICMDARGDEF farg[] =
 {
     {
         CLIARG_UINT32,
-        ".loopnumber",
+        ".wfsnumber",
         "loop number",
         "1",
         CLIARG_VISIBLE_DEFAULT,
-        (void **) &loopnumber,
+        (void **) &wfsnumber,
         NULL
     },
         {
@@ -150,13 +150,13 @@ static errno_t compute_function()
     IMGID inimg;
     {
         char name[STRINGMAXLEN_STREAMNAME];
-        WRITE_IMAGENAME(name, "scmos%u_data", *loopnumber);
+        WRITE_IMAGENAME(name, "scmos%u_data", *wfsnumber);
         inimg = stream_connect(name);
     }
     IMGID outimg;
     {
         char name[STRINGMAXLEN_STREAMNAME];
-        WRITE_IMAGENAME(name, "bob%u", *loopnumber);
+        WRITE_IMAGENAME(name, "bob%u", *wfsnumber);
         outimg = stream_connect_create_2Df32(name, 10, 10);
     }
     list_image_ID();
@@ -172,7 +172,7 @@ static errno_t compute_function()
         CLIcmddata.cmdsettings->triggermode = 3;
         CLIcmddata.cmdsettings->procinfo_loopcntMax = -1;
         char name[STRINGMAXLEN_STREAMNAME];
-        WRITE_IMAGENAME(name, "scmos%u_data", *loopnumber);
+        WRITE_IMAGENAME(name, "scmos%u_data", *wfsnumber);
         strcpy(CLIcmddata.cmdsettings->triggerstreamname, name);
     }
 
