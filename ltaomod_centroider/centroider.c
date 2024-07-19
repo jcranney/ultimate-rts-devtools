@@ -117,7 +117,7 @@ static errno_t docentroids(
     IMGID *slope_map,  // slope map
     IMGID *subap_lut_x,  // pixel position (x) of centre of subap
     IMGID *subap_lut_y,  // pixel position (y) of centre of subap
-    IMGID *wfs_flat,  // pixel position (y) of centre of subap
+    //IMGID *wfs_flat,  // pixel position (y) of centre of subap
     IMGID *wfs_bg, // pixel position (y) of centre of subap
     float thresh,
     uint32_t fovx,
@@ -169,7 +169,7 @@ static errno_t docentroids(
 			for (int jjj=0; jjj<fovy; jjj++){
                 uint32_t idx = wfs_img[0].md[0].size[0]*(y0+jjj)+x0+iii;
 				float pixel = wfs_img[0].im->array.F[idx];
-                pixel *= wfs_flat[0].im->array.F[idx];
+                //pixel *= wfs_flat[0].im->array.F[idx];
                 pixel -= wfs_bg[0].im->array.F[idx];
 				pixel -= bg_row[y0+jjj];
                 if (thresh > -1.0) {
@@ -260,12 +260,14 @@ static errno_t compute_function()
         WRITE_IMAGENAME(name, "lut_yy_c_lgs%02u", *wfsnumber);
         subap_lut_y = stream_connect(name);
     }
+    /*
     IMGID wfs_flat;
     {
         char name[STRINGMAXLEN_STREAMNAME];
         WRITE_IMAGENAME(name, "wfsflat%02u", *wfsnumber);
         wfs_flat = stream_connect(name);
     }
+    */
     IMGID wfs_bg;
     {
         char name[STRINGMAXLEN_STREAMNAME];
@@ -312,7 +314,7 @@ static errno_t compute_function()
     {
 
         docentroids(&wfs_img, &flux_map, &slope_map,
-                    &subap_lut_x, &subap_lut_y, &wfs_flat, &wfs_bg,
+                    &subap_lut_x, &subap_lut_y, &wfs_bg,
                     *thresh, *fovx, *fovy, *nsubx, *nsuby, *bgnpix);
         processinfo_update_output_stream(processinfo, flux_map.ID);
         processinfo_update_output_stream(processinfo, slope_map.ID);
