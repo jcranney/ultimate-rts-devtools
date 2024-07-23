@@ -50,7 +50,7 @@ def load_im(idx, nstack=10):
     return im
 
 
-ims = [load_im(i) for i in np.arange(5)+1]
+ims = [load_im(i) for i in np.arange(5)]
 print(f"{'idx':5s} | {'x0':10s} | {'y0':10s} | "
       f"{'theta':10s} | {'pitchx':10s} | {'pitchy':10s}")
 
