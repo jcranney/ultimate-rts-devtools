@@ -1,4 +1,5 @@
 scmos_data/
+*.egg-info/
 .vscode/
 *.o
 *.npy
