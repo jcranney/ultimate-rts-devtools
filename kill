@@ -1,3 +1,0 @@
-./kill_sessions.sh
-cd wgui
-./kill_gui.sh

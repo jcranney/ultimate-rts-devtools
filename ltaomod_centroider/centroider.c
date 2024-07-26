@@ -251,13 +251,13 @@ static errno_t compute_function()
     IMGID subap_lut_x;
     {
         char name[STRINGMAXLEN_STREAMNAME];
-        WRITE_IMAGENAME(name, "lut_xx_c_lgs%02u", *wfsnumber);
+        WRITE_IMAGENAME(name, "lutx%01u", *wfsnumber);
         subap_lut_x = stream_connect(name);
     }
     IMGID subap_lut_y;
     {
         char name[STRINGMAXLEN_STREAMNAME];
-        WRITE_IMAGENAME(name, "lut_yy_c_lgs%02u", *wfsnumber);
+        WRITE_IMAGENAME(name, "luty%01u", *wfsnumber);
         subap_lut_y = stream_connect(name);
     }
     /*

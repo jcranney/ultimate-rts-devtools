@@ -1,0 +1,60 @@
+0:
+  deltax: 4.5
+  deltay: -4.5
+  fov_x: 6
+  fov_y: 6
+  img_h: 256
+  img_w: 256
+  n_subx: 32
+  n_suby: 32
+  pitch_x: 6.823
+  pitch_y: 6.85
+  theta: 0.0
+1:
+  deltax: -2.08
+  deltay: 8.5
+  fov_x: 6
+  fov_y: 6
+  img_h: 256
+  img_w: 300
+  n_subx: 32
+  n_suby: 32
+  pitch_x: 6.9121
+  pitch_y: 6.9078
+  theta: 0.0
+2:
+  deltax: -6.0
+  deltay: 12.0
+  fov_x: 6
+  fov_y: 6
+  img_h: 256
+  img_w: 300
+  n_subx: 32
+  n_suby: 32
+  pitch_x: 6.918
+  pitch_y: 6.903
+  theta: 0.0
+3:
+  deltax: -10.0
+  deltay: 12.5
+  fov_x: 6
+  fov_y: 6
+  img_h: 256
+  img_w: 300
+  n_subx: 32
+  n_suby: 32
+  pitch_x: 6.876
+  pitch_y: 6.924
+  theta: 0.0
+4:
+  deltax: -3.5
+  deltay: 9.0
+  fov_x: 6
+  fov_y: 6
+  img_h: 256
+  img_w: 300
+  n_subx: 32
+  n_suby: 32
+  pitch_x: 6.871
+  pitch_y: 6.909
+  theta: 0.0

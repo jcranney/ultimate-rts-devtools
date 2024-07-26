@@ -5,7 +5,6 @@ include_directories(/usr/local/milk-1.03.00/include)
 
 # list source files (.c) other than modulename.c
 set(SOURCEFILES
-	helloworld.c
 	centroider.c
 )
 

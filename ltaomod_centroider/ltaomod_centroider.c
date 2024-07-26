@@ -73,7 +73,6 @@
 // If functions are in separate .c files, include here the corresponding .h files
 //
 #include "centroider.h"
-#include "helloworld.h"
 
 /* ================================================================== */
 /* ================================================================== */
@@ -98,7 +97,6 @@ static errno_t init_module_CLI()
 {
 
     CLIADDCMD_ltaomod_centroider__docentroids();
-    CLIADDCMD_ltaomod_centroider__helloworld();
 
     // optional: add atexit functions here
 

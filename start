@@ -1,3 +1,0 @@
-./start_sessions.sh
-cd wgui
-./start_gui.sh
