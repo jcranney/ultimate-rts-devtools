@@ -6,7 +6,7 @@ FRAMERATE=30
 
 tmux has-session -t $SESSION_NAME 2>/dev/null
 if [ $? == 0 ]; then
-    echo "Session already exists, killing it"
+    echo "$SESSION_NAME already exists, killing it"
     tmux kill-session -t $SESSION_NAME
 fi
 
@@ -17,3 +17,4 @@ tmux rename-window -t $SESSION_NAME:0 "replay buffer"
 tmux send-keys "$parent_path/play_images.py $parent_path/../scmos_data --fr 100" C-m
 
 echo "started $SESSION_NAME"
+echo "  milk-streamCTRL  # to check streams"

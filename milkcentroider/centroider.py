@@ -154,6 +154,7 @@ e.g.,
             if not quiet:
                 print("all FPSs aleady exist, aborting (maybe `stop` first?)")
             exit(0)
+        self.clean(quiet=True)
 
         self._load_configs(filename, quiet=quiet)
         self._start(quiet=quiet)
@@ -436,6 +437,7 @@ e.g.,
             pathname = os.path.abspath(os.path.join(dirname, filename))
             if pathname.startswith(dirname):
                 os.remove(pathname)
+        self.clean(quiet=True)
 
     def clean(self, quiet=False):
         """clean crumbs in shm dir. Shouldn't be necessary but it is"""

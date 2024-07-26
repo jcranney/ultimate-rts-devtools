@@ -4,19 +4,19 @@ from pyMilk.interfacing.isio_shmlib import SHM
 from PIL import Image
 import io
 import matplotlib as mpl
-import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import cm
-from PIL import Image
 
 SUCCESS = 0
 FILENOTEFOUND = 1
 
 app = Flask(__name__)
 
+
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 def gen(prefix="default"):
     shms = None
@@ -34,25 +34,29 @@ def gen(prefix="default"):
             ims = [shm.get_data() for shm in shms]
             ims = [im-im.min() for im in ims]
             ims = [im/im.max() for im in ims]
-            im = np.concatenate(ims,axis=1)
+            im = np.concatenate(ims, axis=1)
             frame = Image.fromarray(np.uint8(cmap(norm(im))*255))
             file = io.BytesIO()
             frame.convert("RGB").save(file, format="png")
             file.seek(0)
             yield (b'--frame\r\n'
-                    b'Content-Type: image/png\r\n\r\n' + file.read() + b'\r\n')
+                   b'Content-Type: image/png\r\n\r\n' + file.read() + b'\r\n')
+
 
 @app.route('/stream', methods=["GET"])
 def stream():
     name = request.args.get("prefix")
     if name is None:
-        return f"invalid request"
+        return "invalid request"
     response = gen(name)
     success = next(response)
     if success:
-        return Response(response,
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
+        return Response(
+            response,
+            mimetype='multipart/x-mixed-replace; boundary=frame'
+        )
     return f"shm stream: {name} not found"
+
 
 def create_app():
     return app

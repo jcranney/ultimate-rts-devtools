@@ -4,7 +4,7 @@
 usage()
 {
     echo -n "############################################################
-# Compile script for ltaomod milk plugin
+# Compile script for ltaomodcentroider milk plugin
 # Customize / add you own options
 # Use as-is, or make a local custom copy (private, do not commit)
 ############################################################
@@ -13,11 +13,11 @@ Examples:
 
 Install to deafult directory (/usr/local)
 $ $(basename $0)
-$ cd _build; sudo make install
+$ cd build; sudo make install
 
 Do not include Python wrapper, build in local dir
 $ $(basename $0) \$PWD/local
-$ cd _build; make install
+$ cd build; make install
     "
 }
 
@@ -26,8 +26,8 @@ if [ "$1" == "-h" ]; then
     exit 1
 fi
 
-mkdir -p _build
-cd _build
+mkdir -p build
+cd build
 
 if [ ! -z $1 ]
 then

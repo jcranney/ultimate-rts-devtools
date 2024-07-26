@@ -2,10 +2,20 @@
   <head>
     <title>LTAO Streaming</title>
   </head>
-  <body style="background-color:darkslategrey; color: aliceblue;">
-    <h4>Flux maps:</h4>
-    <img alt="flux" style="width:1000px" src="{{ url_for('stream') }}?prefix=flux">
-    <h4>Slope maps:</h4>
-    <img alt="slopemap" style="width:1000px" src="{{ url_for('stream') }}?prefix=slopemap">
+  <body style="background-color:darkslategrey;color: aliceblue;font-family: Arial, Helvetica, sans-serif;">
+      <center>
+      <div style="width:80%">
+        <table style="width:100%;font-size: large;">
+          <tr><th>FLUX WFS0</th><th>FLUX WFS1</th><th>FLUX WFS2</th><th>FLUX WFS3</th><th>FLUX WFS4</th></tr></td></tr>
+        </table>
+        <img alt="flux" style="width:100%" src="{{ url_for('stream') }}?prefix=flux">
+        <br/>
+        <br/>
+        <table style="width:100%;font-size: large;">
+          <tr><th>SLOPES WFS0</th><th>SLOPES WFS1</th><th>SLOPES WFS2</th><th>SLOPES WFS3</th><th>SLOPES WFS4</th></tr></td></tr>
+        </table>
+        <img alt="slopemap" style="width:100%" src="{{ url_for('stream') }}?prefix=slopemap">
+      </div>
+        </center>
   </body>
 </html>
