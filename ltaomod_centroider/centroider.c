@@ -271,19 +271,19 @@ static errno_t compute_function()
     IMGID wfs_bg;
     {
         char name[STRINGMAXLEN_STREAMNAME];
-        WRITE_IMAGENAME(name, "scmos%u_bg", *wfsnumber);
+        WRITE_IMAGENAME(name, "scmos%01u_bg", *wfsnumber);
         wfs_bg = stream_connect(name);
     }
     IMGID flux_map;
     {
         char name[STRINGMAXLEN_STREAMNAME];
-        WRITE_IMAGENAME(name, "flux%02u", *wfsnumber);
+        WRITE_IMAGENAME(name, "flux%01u", *wfsnumber);
         flux_map = stream_connect_create_2Df32(name, 32, 32);
     }
     IMGID slope_map;
     {
         char name[STRINGMAXLEN_STREAMNAME];
-        WRITE_IMAGENAME(name, "slopemap%02u", *wfsnumber);
+        WRITE_IMAGENAME(name, "slopemap%01u", *wfsnumber);
         slope_map = stream_connect_create_2Df32(name, 32, 64);
     }
     list_image_ID();

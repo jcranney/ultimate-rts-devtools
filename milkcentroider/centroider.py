@@ -17,7 +17,7 @@ import numpy as np
 # terminal. E.g.:
 #
 #   with redirect_stdout():
-#       fps = FPS(f"{self._fpsprefix:s}{idx:02d}")
+#       fps = FPS(f"{self._fpsprefix:s}{idx:2d}")
 #
 @contextlib.contextmanager
 def redirect_stdout(stdout=os.devnull):
@@ -165,7 +165,7 @@ e.g.,
 
         # create centroider FPS
         for idx in self._indices:
-            milk_loopname = f"centroider{idx:02d}"
+            milk_loopname = f"centroider{idx:01d}"
             milk_cmd = (f"mload ltaomodcentroider;"
                         f"ltao.centroider {idx:01d};"
                         f"ltao.centroider _FPSINIT_;"
@@ -198,7 +198,7 @@ e.g.,
         # so far, just look for "WARNING (PID XXXX) Cannot open shm file ..."
         warnings = result.stderr.decode().split("Cannot open shm file")[1:]
         warnings = [
-            f'    missing required shm: {s.split("\"")[1]}'
+            f'    missing shm: {s.split("\"")[1]}'
             for s in warnings
         ]
         return "\n".join(warnings)
@@ -207,7 +207,7 @@ e.g.,
         """returns list of living FPS instances"""
         fps_list = []
         for idx in self._indices:
-            name = f"{self._fpsprefix:s}{idx:02d}"
+            name = f"{self._fpsprefix:s}{idx:01d}"
             with redirect_stdout():
                 try:
                     fps = FPS(name)
@@ -379,17 +379,18 @@ e.g.,
             xx_c, yy_c, _, _ = configs[idx].build_lut()
             lutxname = f"lutx{idx:01d}"
             lutyname = f"luty{idx:01d}"
-            with redirect_stdout():
-                try:
-                    shm = SHM(lutxname)
-                    shm.set_data(xx_c)
-                except FileNotFoundError:
-                    shm = SHM(lutxname, xx_c)
-                try:
-                    shm = SHM(lutyname)
-                    shm.set_data(yy_c)
-                except FileNotFoundError:
-                    shm = SHM(lutxname, yy_c)
+            #with redirect_stdout():
+            try:
+                shm = SHM(lutxname)
+                shm.set_data(xx_c)
+            except FileNotFoundError:
+                shm = SHM(lutxname, xx_c)
+            try:
+                shm = SHM(lutyname)
+                shm.set_data(yy_c)
+            except FileNotFoundError:
+                shm = SHM(lutyname, yy_c)
+            
             if not quiet:
                 print(f"wrote lutx{idx:01d} and luty{idx:01d} to shm")
 
@@ -467,19 +468,18 @@ e.g.,
         my_env = os.environ.copy()
         my_env["FPS_FILTSTRING_NAME"] = "centroider"
         subprocess.run(["milk-fpsCTRL"], env=my_env)
-        # return success
 
     def setparam(self):
         """set parameter for centroiders"""
-        pass
+        print("work in progress")
 
     def getparam(self):
         """get parameter for centroiders"""
-        pass
+        print("work in progress")
 
     def ui(self):
         """Launch centroider ui"""
-        pass
+        print("work in progress")
 
 
 def main():
