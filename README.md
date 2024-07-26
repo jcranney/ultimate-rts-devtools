@@ -71,19 +71,6 @@ dmproj--command_dm-->AO3k
 ```
 with the possibility of combining the `calibrator` and `centroider` processes into a single `calibrate_and_centroid` process. The `concatenator` process would also be required to synchronize the 4 input streams before passing the slope vector to the RTS.
 
-## Replay telemetry buffer
-Replay a saved telemetry buffer, e.g., a simulated one. Data will be pushed to shared memory at 500 Hz. See screenshot above.
-
-Replay a simulation:
-```bash
-./scripts/replay_simu.sh
-```
-or, e.g.,
-```bash
-./scripts/replay_wfs01.sh
-```
-
 ## TODO:
  - C-profiling/benchmarking for `centroider.c`
- - `procCTRL`-ify the centroider,
  - Simple closed-loop RTS, no POLC.
