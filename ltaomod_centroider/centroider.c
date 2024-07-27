@@ -144,9 +144,9 @@ static errno_t docentroids(
     for (int row=0; row<wfs_img[0].md[0].size[1]; row++){
         bg_row[row] = 0.0;
         for (int column_offset=0; column_offset<bgnpix; column_offset++){
-            bg_row[row] += wfs_img[0].im->array.F[wfs_img[0].md[0].size[0]*(row)+column_offset] - 
+            bg_row[row] += wfs_img[0].im->array.UI16[wfs_img[0].md[0].size[0]*(row)+column_offset] - 
                            wfs_bg[0].im->array.F[wfs_img[0].md[0].size[0]*(row)+column_offset];
-            bg_row[row] += wfs_img[0].im->array.F[wfs_img[0].md[0].size[0]*(row+1)-column_offset-1] -
+            bg_row[row] += wfs_img[0].im->array.UI16[wfs_img[0].md[0].size[0]*(row+1)-column_offset-1] -
                            wfs_bg[0].im->array.F[wfs_img[0].md[0].size[0]*(row+1)-column_offset-1];
         }
         if (bgnpix>0) {
@@ -168,7 +168,7 @@ static errno_t docentroids(
 		for (int iii=0; iii<fovx; iii++){
 			for (int jjj=0; jjj<fovy; jjj++){
                 uint32_t idx = wfs_img[0].md[0].size[0]*(y0+jjj)+x0+iii;
-				float pixel = wfs_img[0].im->array.F[idx];
+				float pixel = wfs_img[0].im->array.UI16[idx];
                 //pixel *= wfs_flat[0].im->array.F[idx];
                 pixel -= wfs_bg[0].im->array.F[idx];
 				pixel -= bg_row[y0+jjj];

@@ -39,7 +39,7 @@ bg_data = [
 for data in bg_data:
     try:
         if "5" in data[0]:
-            data[0] = data[0].replace("5","0")
+            data[0] = data[0].replace("5", "0")
         shm = SHM(data[0])
         shm.set_data(data[1])
     except FileNotFoundError:
@@ -48,14 +48,14 @@ for data in bg_data:
 # now loop over buffer of images to feed to SHM
 # initialise first so we don't do it every time
 raw_data = [
-    [r[0].header["CAMERA"]+"_data", r[0].data.astype(np.float32)]
+    [r[0].header["CAMERA"]+"_data", r[0].data.astype(np.uint16)]
     for r in raw
 ]
 shms = []
 for data in raw_data:
     try:
         if "5" in data[0]:
-            data[0] = data[0].replace("5","0")
+            data[0] = data[0].replace("5", "0")
         shm = SHM(data[0])
         shm.set_data(data[1][0])
     except FileNotFoundError:
