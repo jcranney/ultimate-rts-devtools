@@ -18,12 +18,12 @@ def index():
     return render_template('index.html')
 
 
-def gen(prefix="default"):
+def gen(prefix="", suffix=""):
     shms = None
     try:
-        shms = [SHM(f"{prefix}{i:01d}") for i in range(5)]
+        shms = [SHM(f"{prefix}{i:01d}{suffix}") for i in range(5)]
     except FileNotFoundError:
-        print(f"No streams with prefix: {prefix}")
+        print(f"No stream with prefix `{prefix}` and suffix `{suffix}`")
     if shms is None:
         yield False
     else:
@@ -45,17 +45,18 @@ def gen(prefix="default"):
 
 @app.route('/stream', methods=["GET"])
 def stream():
-    name = request.args.get("prefix")
-    if name is None:
+    prefix = request.args.get("prefix")
+    suffix = request.args.get("prefix")
+    if prefix is None and suffix is None:
         return "invalid request"
-    response = gen(name)
+    response = gen(prefix=prefix, suffix=suffix)
     success = next(response)
     if success:
         return Response(
             response,
             mimetype='multipart/x-mixed-replace; boundary=frame'
         )
-    return f"shm stream: {name} not found"
+    return f"shm stream: {prefix}N{suffix} not found"
 
 
 def create_app():
