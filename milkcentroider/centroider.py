@@ -461,7 +461,7 @@ class CentroiderCLI():
                 fov_x = configs[idx].fov_x
                 fov_y = configs[idx].fov_y
                 cogthresh = configs[idx].cogthresh
-                bgnpix = configs[idx].cogthresh
+                bgnpix = configs[idx].bgnpix
                 fps.set_param("fovx", fov_x)
                 while fps.get_param("fovx") != fov_x:
                     fps.set_param("fovx", fov_x)
