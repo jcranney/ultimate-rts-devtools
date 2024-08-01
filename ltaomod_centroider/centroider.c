@@ -247,16 +247,10 @@ static errno_t try_collate(
     DEBUG_TRACE_FSTART();
     // custom stream process function code
 
-    // resolve imgpos
-    resolveIMGID(slope_map, ERRMODE_ABORT);
-    imcreateIMGID(slope_vec);
-    slope_vec->md->write = 1;
 
     uint32_t offset;
-    printf("all wfss\n");
     switch (wfsnumber) {
         case 1:
-            printf("only wfs 1\n");
             offset = (nsubx*nsuby*2)*0;
             break;
         case 2:
@@ -273,10 +267,16 @@ static errno_t try_collate(
             return RETURN_SUCCESS;
     }
 
+    // resolve imgpos
+    resolveIMGID(slope_map, ERRMODE_ABORT);
+    imcreateIMGID(slope_vec);
+    slope_vec->md->write = 1;
+    
     for (int i=0; i<nsubx*nsuby*2; i++){
         slope_vec[0].im->array.F[i+offset] = slope_map[0].im->array.F[i];
     }
 
+    ImageStreamIO_UpdateIm(slope_vec->im);
     // leaving the synchronisation signal for discussion with Olivier + Yoshito
     // but thinking about the logic - something like this could work:
     /*
@@ -399,7 +399,6 @@ static errno_t compute_function()
         processinfo_update_output_stream(processinfo, flux_map.ID);
         processinfo_update_output_stream(processinfo, slope_map.ID);
         try_collate(&slope_map, &slope_vec, *wfsnumber, *nsubx, *nsuby);
-        processinfo_update_output_stream(processinfo, slope_vec.ID);
         reducemeasurements(&flux_map, &slope_map, *nsubx, *nsuby, *fluxthresh);
     }
     INSERT_STD_PROCINFO_COMPUTEFUNC_END

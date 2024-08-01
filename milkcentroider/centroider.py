@@ -197,7 +197,7 @@ class CentroiderCLI():
             pathname = os.path.abspath(os.path.join(dirname, filename))
             if pathname.startswith(dirname):
                 os.remove(pathname)
-        self._clean(quiet=True)
+        self._clean(quiet=True, cleanshm=True)
 
     @staticmethod
     def _parse_launch_result(result):
@@ -501,15 +501,25 @@ class CentroiderCLI():
         if not quiet:
             print(f"saved configs to:\n{filename}")
 
-    def _clean(self, quiet=False):
+    def _clean(self, quiet=False, cleanshm=False):
         """clean crumbs in shm dir. Shouldn't be necessary but it is"""
-        import glob
-        files = glob.glob(os.environ["MILK_SHM_DIR"] +
-                          "/milkCLIstartup.centroider0*")
-        for file in files:
-            if not quiet:
-                print(f"rm {file}")
-            os.remove(file)
+        from glob import glob
+
+        def rm(files):
+            for file in files:
+                if not quiet:
+                    print(f"rm {file}")
+                os.remove(file)
+
+        rm(glob(os.environ["MILK_SHM_DIR"] + "/milkCLIstartup.centroider*"))
+        if cleanshm:
+            rm(glob(os.environ["MILK_SHM_DIR"] + "/flux*.im.shm"))
+            rm(glob(os.environ["MILK_SHM_DIR"] + "/lutx*.im.shm"))
+            rm(glob(os.environ["MILK_SHM_DIR"] + "/luty*.im.shm"))
+            rm(glob(os.environ["MILK_SHM_DIR"] + "/slopemap*.im.shm"))
+            rm(glob(os.environ["MILK_SHM_DIR"] + "/slopevec.im.shm"))
+            rm(glob(os.environ["MILK_SHM_DIR"] + "/proc.centroider*.shm"))
+            rm(glob(os.environ["MILK_SHM_DIR"] + "/processinfo.list.shm"))
 
     def status(self):
         """Print current status of centroider"""
