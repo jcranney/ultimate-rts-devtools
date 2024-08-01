@@ -48,6 +48,7 @@ class Config(BaseModel):
     fov_y: int
     theta: float
     cogthresh: float
+    bgnpix: int
 
     @staticmethod
     def from_dict(config_dict: dict):
@@ -296,6 +297,7 @@ class CentroiderCLI():
                 "fov_y": 6,
                 "theta": 0.0,
                 "cogthresh": 0.0,
+                "bgnpix": 22,
             } for idx in self._indices
         }
         configs = {
@@ -381,6 +383,8 @@ class CentroiderCLI():
 
             if "cogthresh" not in config.keys():
                 config["cogthresh"] = 0.0
+            if "bgnpix" not in config.keys():
+                config["bgnpix"] = 22
             # convert config dict to Config obj
             # save to local _configs dict
             configs[idx] = Config.from_dict(config)
@@ -457,6 +461,7 @@ class CentroiderCLI():
                 fov_x = configs[idx].fov_x
                 fov_y = configs[idx].fov_y
                 cogthresh = configs[idx].cogthresh
+                bgnpix = configs[idx].cogthresh
                 fps.set_param("fovx", fov_x)
                 while fps.get_param("fovx") != fov_x:
                     fps.set_param("fovx", fov_x)
@@ -466,6 +471,9 @@ class CentroiderCLI():
                 fps.set_param("cogthresh", cogthresh)
                 while fps.get_param("cogthresh") != cogthresh:
                     fps.set_param("cogthresh", cogthresh)
+                fps.set_param("bgnpix", bgnpix)
+                while fps.get_param("bgnpix") != bgnpix:
+                    fps.set_param("bgnpix", bgnpix)
                 if running:
                     while not fps.run_isrunning():
                         fps.run_start()
