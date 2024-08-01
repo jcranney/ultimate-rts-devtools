@@ -20,8 +20,13 @@
         <table style="width:100%;font-size: large;">
           <tr><th>IMG WFS0</th><th>IMG WFS1</th><th>IMG WFS2</th><th>IMG WFS3</th><th>IMG WFS4</th></tr></td></tr>
         </table>
-        <img alt="rawimg" style="width:100%" src="{{ url_for('stream') }}?prefix=scmos&suffix=_dataf">
+        <img alt="rawimg" style="width:100%" src="{{ url_for('stream') }}?prefix=scmos&suffix=_data"><br/>
+        <br/>
+        <table style="width:100%;font-size: large;">
+          <tr><th>BG WFS0</th><th>BG WFS1</th><th>BG WFS2</th><th>BG WFS3</th><th>BG WFS4</th></tr></td></tr>
+        </table>
+        <img alt="rawimg" style="width:100%" src="{{ url_for('stream') }}?prefix=scmos&suffix=_bg">
       </div>
-        </center>
+      </center>
   </body>
 </html>

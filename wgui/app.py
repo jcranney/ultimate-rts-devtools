@@ -7,6 +7,7 @@ import matplotlib as mpl
 import numpy as np
 from matplotlib import cm
 
+
 SUCCESS = 0
 FILENOTEFOUND = 1
 
@@ -46,9 +47,11 @@ def gen(prefix="", suffix=""):
 @app.route('/stream', methods=["GET"])
 def stream():
     prefix = request.args.get("prefix")
-    suffix = request.args.get("prefix")
-    if prefix is None and suffix is None:
-        return "invalid request"
+    suffix = request.args.get("suffix")
+    if prefix is None:
+        prefix = ""
+    if suffix is None:
+        suffix = ""
     response = gen(prefix=prefix, suffix=suffix)
     success = next(response)
     if success:
