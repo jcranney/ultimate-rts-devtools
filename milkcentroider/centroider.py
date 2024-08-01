@@ -9,8 +9,8 @@ import yaml
 from pyMilk.interfacing.fps import FPS
 from pyMilk.interfacing.shm import SHM
 from pydantic import BaseModel
-from .build_subap_lut import build_lut, plot_lut
-from .fit_subap_lut import fit_config, print_header
+from milkcentroider.build_subap_lut import build_lut, plot_lut
+from milkcentroider.fit_subap_lut import fit_config, print_header, fine_tune
 import numpy as np
 
 
@@ -47,6 +47,7 @@ class Config(BaseModel):
     fov_x: int
     fov_y: int
     theta: float
+    cogthresh: float
 
     @staticmethod
     def from_dict(config_dict: dict):
@@ -95,11 +96,8 @@ class CentroiderCLI():
                 "cmd": attribute,
                 "doc": doc,
             })
-        usage = """
-centroider <command> [<args>]
+        usage = "centroider <command> [<args>]\n\nThe valid commands are:\n"
 
-The valid commands are:
-"""
         usage += "\n".join([
             f"{command["cmd"]:>10s}     {command["doc"]:<s}"
             for command in commands
@@ -121,13 +119,14 @@ The valid commands are:
 
         parser = argparse.ArgumentParser(
             description='start centroiders, using config on disk',
-            usage="""
-    centroider start [-h] [--filename NAME]
-e.g.,
-    centroider start
-    centroider start --help
-    centroider start --filename customconfig.yaml
-        """)
+            usage=(
+                "   centroider start [-h] [--filename NAME]\n\n"
+                "e.g.,\n"
+                "    centroider start\n"
+                "    centroider start --help\n"
+                "    centroider start --filename customconfig.yaml\n"
+            )
+        )
         parser.add_argument(
             "--filename", help="centroider configuration filename",
             default=self._default_configfile
@@ -141,12 +140,8 @@ e.g.,
             if not quiet:
                 print("all FPSs aleady exist, aborting (maybe `stop` first?)")
             exit(0)
-        self.clean(quiet=True)
+        self._config_load(filename, quiet=quiet)
 
-        self._load_configs(filename, quiet=quiet)
-        self._start(quiet=quiet)
-
-    def _start(self, quiet=False):
         # create centroider FPS
         for idx in self._indices:
             milk_loopname = f"centroider{idx:01d}"
@@ -173,6 +168,35 @@ e.g.,
                 fps.run_start()
             if not quiet:
                 print(f"started {fps.name}")
+        self._clean(quiet=True)
+
+    def stop(self, quiet=False):
+        """Try to stop the centroiders"""
+        valid_fps = self._fps_list()
+        if len(valid_fps) == 0:
+            if not quiet:
+                print("all centroiders stopped already")
+        for fps in valid_fps:
+            if not quiet:
+                print(f"stopping {fps.name}")
+            # stop run (if running)
+            fps.run_stop()
+            # stop conf (if confing)
+            fps.conf_stop()
+            # close tmux (if tmuxing)
+            subprocess.run([
+                "tmux",
+                "kill-session",
+                "-t",
+                f"{fps.name}"
+            ], capture_output=True, check=False)
+            # delete FPS
+            dirname = os.environ["MILK_SHM_DIR"]
+            filename = fps.name+".fps.shm"
+            pathname = os.path.abspath(os.path.join(dirname, filename))
+            if pathname.startswith(dirname):
+                os.remove(pathname)
+        self._clean(quiet=True)
 
     @staticmethod
     def _parse_launch_result(result):
@@ -219,26 +243,26 @@ e.g.,
         filename = os.path.abspath(args.filename)
 
         if args.action == "load":
-            self._load_configs(filename, quiet=quiet)
+            self._config_load(filename, quiet=quiet)
         elif args.action == "init":
-            self._init_configs(filename, quiet=quiet)
+            self._config_init(filename, quiet=quiet)
         elif args.action == "fit":
-            self._fit_configs(filename, quiet=quiet)
+            self._config_fit(filename, quiet=quiet)
         elif args.action == "plot":
-            self._load_configs(filename, quiet=quiet, apply=False)
-            self._plot_configs(quiet=quiet)
+            self._config_load(filename, quiet=quiet, apply=False)
+            self._config_plot(quiet=quiet)
         elif args.action == "edit":
             editor = "nano"
             if "EDITOR" in os.environ:
                 editor = os.environ["EDITOR"]
             subprocess.run([editor, filename])
-            self._load_configs(filename, quiet=quiet)
+            self._config_load(filename, quiet=quiet)
         else:
             raise RuntimeError(
                 "This should be unreachable, how did you get here?"
             )
 
-    def _load_configs(self, filename, quiet=False, apply=True):
+    def _config_load(self, filename, quiet=False, apply=True):
         # Loading configs from file
         with open(filename, "r") as f:
             configs = yaml.safe_load(f)
@@ -255,9 +279,9 @@ e.g.,
             _configs[idx] = Config.from_dict(config)
         self._configs = _configs
         if apply:
-            self._apply_configs(quiet=quiet)
+            self._config_apply(quiet=quiet)
 
-    def _init_configs(self, filename, quiet=False):
+    def _config_init(self, filename, quiet=False):
         configs = {
             idx: {
                 "deltax": 0.0,
@@ -271,17 +295,18 @@ e.g.,
                 "fov_x": 6,
                 "fov_y": 6,
                 "theta": 0.0,
+                "cogthresh": 0.0,
             } for idx in self._indices
         }
         configs = {
             idx: Config.from_dict(config)
             for idx, config in configs.items()
         }
-        self._save_configs(filename, configs=configs, quiet=quiet)
+        self._config_save(filename, configs=configs, quiet=quiet)
         # load the configs via disk to make sure everything is bulletproof
-        self._load_configs(filename, quiet=quiet)
+        self._config_load(filename, quiet=quiet)
 
-    def _fit_configs(self, filename, quiet=False, nframes=100):
+    def _config_fit(self, filename, quiet=False, nframes=10):
         # open config file to extract nsub* img* and any other non-fitted
         # params. Need to allow a reduced set of parameters defined in config,
         with open(filename, "r") as f:
@@ -354,6 +379,8 @@ e.g.,
             config["img_w"] = img_w
             config["img_h"] = img_h
 
+            if "cogthresh" not in config.keys():
+                config["cogthresh"] = 0.0
             # convert config dict to Config obj
             # save to local _configs dict
             configs[idx] = Config.from_dict(config)
@@ -365,11 +392,18 @@ e.g.,
         # replace entries of config with those fitted above, for the WFSs that
         # were fitted. Leave other entries in yaml file alone.
         # save config to disk
-        self._save_configs(filename, configs=configs, quiet=quiet)
+        self._config_save(filename, configs=configs, quiet=quiet)
         # load config from disk and apply to shm
-        self._load_configs(filename, quiet=quiet, apply=True)
+        self._config_load(filename, quiet=quiet, apply=True)
+        for idx in self._indices:
+            result = fine_tune(idx, nframes=nframes)
+            if result is not None:
+                configs[idx].deltax += float(result[0])
+                configs[idx].deltay += float(result[1])
+        self._config_save(filename, configs=configs, quiet=quiet)
+        self._config_load(filename, quiet=quiet, apply=True)
 
-    def _plot_configs(self, configs=None, quiet=False):
+    def _config_plot(self, configs=None, quiet=False):
         """plot the configuration provided"""
         if not configs:
             if self._configs:
@@ -385,7 +419,7 @@ e.g.,
                      title=f"WFS {idx}")
         plt.show()
 
-    def _apply_configs(self, configs=None, quiet=False):
+    def _config_apply(self, configs=None, quiet=False):
         """apply config, either the provided one or the one in the object"""
         if configs is None:
             if self._configs:
@@ -422,12 +456,16 @@ e.g.,
                         fps.run_stop()
                 fov_x = configs[idx].fov_x
                 fov_y = configs[idx].fov_y
+                cogthresh = configs[idx].cogthresh
                 fps.set_param("fovx", fov_x)
                 while fps.get_param("fovx") != fov_x:
                     fps.set_param("fovx", fov_x)
                 fps.set_param("fovy", fov_y)
                 while fps.get_param("fovy") != fov_y:
                     fps.set_param("fovy", fov_y)
+                fps.set_param("cogthresh", cogthresh)
+                while fps.get_param("cogthresh") != cogthresh:
+                    fps.set_param("cogthresh", cogthresh)
                 if running:
                     while not fps.run_isrunning():
                         fps.run_start()
@@ -437,7 +475,7 @@ e.g.,
             if not quiet:
                 print(f"wrote lutx{idx:01d} and luty{idx:01d} to shm")
 
-    def _save_configs(self, filename, configs=None, quiet=False):
+    def _config_save(self, filename, configs=None, quiet=False):
         if configs is None:
             configs = self._configs
         if configs is None:
@@ -455,35 +493,7 @@ e.g.,
         if not quiet:
             print(f"saved configs to:\n{filename}")
 
-    def stop(self, quiet=False):
-        """Try to stop the centroiders"""
-        valid_fps = self._fps_list()
-        if len(valid_fps) == 0:
-            if not quiet:
-                print("all centroiders stopped already")
-        for fps in valid_fps:
-            if not quiet:
-                print(f"stopping {fps.name}")
-            # stop run (if running)
-            fps.run_stop()
-            # stop conf (if confing)
-            fps.conf_stop()
-            # close tmux (if tmuxing)
-            subprocess.run([
-                "tmux",
-                "kill-session",
-                "-t",
-                f"{fps.name}"
-            ], capture_output=True, check=False)
-            # delete FPS
-            dirname = os.environ["MILK_SHM_DIR"]
-            filename = fps.name+".fps.shm"
-            pathname = os.path.abspath(os.path.join(dirname, filename))
-            if pathname.startswith(dirname):
-                os.remove(pathname)
-        self.clean(quiet=True)
-
-    def clean(self, quiet=False):
+    def _clean(self, quiet=False):
         """clean crumbs in shm dir. Shouldn't be necessary but it is"""
         import glob
         files = glob.glob(os.environ["MILK_SHM_DIR"] +
@@ -504,52 +514,6 @@ e.g.,
             print(f"{fps.name}")
             print(f"    running: {fps.conf_isrunning()}")
             print(f"    confing: {fps.run_isrunning()}")
-
-    def fpsCTRL(self):
-        """Launch milk-fpsCTRL with centroider filter on fps's"""
-        # run milk-fpsCTRL with centroider filter
-        my_env = os.environ.copy()
-        my_env["FPS_FILTSTRING_NAME"] = "centroider"
-        subprocess.run(["milk-fpsCTRL"], env=my_env)
-
-    def setparam(self, quiet=False):
-        """set parameter for centroiders"""
-        parser = argparse.ArgumentParser(
-            description='set centroiders param',
-            usage="centroider setparam [-h] idx parameter value"
-        )
-        parser.add_argument(
-            "idx", help="wfs index", type=int,
-        )
-        parser.add_argument(
-            "parameter", help="parameter to set",
-        )
-        parser.add_argument(
-            "value", help="value of parameter", type=float,
-        )
-        args = parser.parse_args(sys.argv[2:])
-
-        fpsname = f"{self._fpsprefix}{args.idx:01d}"
-        try:
-            fps = FPS(fpsname)
-        except RuntimeError:
-            if not quiet:
-                print(f"{fpsname:s} doesn't exist, try `cent start`")
-            exit(1)
-
-        running = fps.run_isrunning()
-        while fps.run_isrunning():
-            fps.run_stop()
-        fps.set_param(args.parameter, args.value)
-        if running:
-            while not fps.run_isrunning():
-                fps.run_start()
-        # if the parameters overlap with the config, then this should write
-        # to the config file as well.
-
-    def getparam(self):
-        """get parameter for centroiders"""
-        print("work in progress")
 
     def ui(self):
         """Launch centroider ui"""

@@ -1,12 +1,9 @@
-#!/usr/bin/env python
-"""
-This is spaghetti code that works better than it ought to. It deserves cleaning
-up but that's not a priority. If you would like to understand this code better,
-maybe just email me, jesse.cranney@anu.edu.au
-"""
+#!/usr/bin/env python3
 
 import numpy as np
-from .build_subap_lut import build_lut
+from pyMilk.interfacing.fps import FPS
+from pyMilk.interfacing.shm import SHM
+from milkcentroider.build_subap_lut import build_lut
 
 
 def print_header():
@@ -107,3 +104,48 @@ def fit_config(
           f"{theta_best:10.5f} | {pitch_x:10.3f} | {pitch_y:10.3f}")
 
     return deltax_best, deltay_best, theta_best, pitch_x, pitch_y
+
+
+def fine_tune(idx, quiet=False, flux_thresh=0.8, nframes=1):
+    fpsname = f"centroider{idx:01d}"
+    try:
+        fps = FPS(fpsname)
+    except RuntimeError:
+        if not quiet:
+            print(f"{fpsname} doesn't exist, can't fine tune")
+        return None
+    if not fps.run_isrunning():
+        print(f"{fpsname} not running, can't fine tune")
+        return None
+
+    # fps exists and is running
+
+    fluxname = f"flux{idx:01d}"
+    try:
+        flux_shm = SHM(fluxname)
+    except RuntimeError:
+        if not quiet:
+            print(f"{fluxname} shm doesn't exist, can't fine tune")
+        return None
+    slopemapname = f"slopemap{idx:01d}"
+    try:
+        slopemap_shm = SHM(slopemapname)
+    except RuntimeError:
+        if not quiet:
+            print(f"{slopemapname} shm doesn't exist, can't fine tune")
+        return None
+
+    # shm's exist
+
+    # grab a frame of each (assume synced, not a big deal if not):
+    data = [(
+        slopemap_shm.get_data(),
+        flux_shm.get_data()
+    ) for _ in range(nframes)]
+    slopemap = np.mean([d[0] for d in data], axis=0)
+    fluxmap = np.mean([d[1] for d in data], axis=0)
+
+    good_subaps = np.argwhere(fluxmap.flatten() > (fluxmap.max()*flux_thresh))
+    tt_x = slopemap.flatten()[good_subaps].mean()
+    tt_y = slopemap.flatten()[good_subaps+fluxmap.flatten().shape[0]].mean()
+    return tt_x, tt_y
