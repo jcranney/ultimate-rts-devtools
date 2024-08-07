@@ -12,6 +12,8 @@ from pydantic import BaseModel
 from milkcentroider.build_subap_lut import build_lut, plot_lut
 from milkcentroider.fit_subap_lut import fit_config, print_header, fine_tune
 import numpy as np
+from milkcentroider.wgui import app
+import time
 
 
 # This redirect class allows suppression of the C-code prints that mess up the
@@ -78,6 +80,8 @@ class CentroiderCLI():
     # or to ignore the NGS:
     # _indices = [1, 2, 3, 4]
     _fpsprefix = "centroider"
+
+    _wgui_sessionname = "centroider-wgui"
 
     # this is a dict with WFS idx as key (not a list, because we don't
     # want to be restricted to always having 0,1,2,... wfs numbering,
@@ -533,9 +537,88 @@ class CentroiderCLI():
             print(f"    running: {fps.conf_isrunning()}")
             print(f"    confing: {fps.run_isrunning()}")
 
-    def ui(self):
+    def wgui(self, quiet=False):
         """Launch centroider ui"""
-        print("work in progress")
+        parser = argparse.ArgumentParser(
+            description='start/stop web gui',
+            )
+        parser.add_argument(
+            "action", help="view/change wgui status",
+            choices=["start", "stop", "status"]
+        )
+        args = parser.parse_args(sys.argv[2:])
+
+        if args.action == "start":
+            if self._wgui_status() == 0:
+                print("wgui already running")
+                self._print_wgui_output()
+            else:
+                self._wgui_start(quiet=quiet)
+                if self._wgui_status() == 0:
+                    time.sleep(2.0)
+                    print("WGUI STARTED")
+                    self._print_wgui_output()
+                else:
+                    print("WGUI FAILED TO START")
+        elif args.action == "stop":
+            self._wgui_kill(quiet=quiet)
+        elif args.action == "status":
+            if self._wgui_status(quiet=quiet) == 0:
+                print("WGUI ALIVE")
+                self._print_wgui_output()
+            else:
+                print("WGUI DEAD")
+        else:
+            raise RuntimeError(
+                "This should be unreachable, how did you get here?"
+            )
+
+    def _wgui_status(self, quiet=False) -> int:
+        cmds = [
+            "tmux",
+            "has-session",
+            "-t",
+            self._wgui_sessionname
+        ]
+        result = subprocess.run(cmds, capture_output=True)
+        return result.returncode
+
+    def _wgui_start(self, quiet=False):
+        cmds = [
+            "tmux",
+            "new-session",
+            "-d",
+            "-s",
+            self._wgui_sessionname,
+            f"python {app.__file__}",
+        ]
+        subprocess.run(cmds, capture_output=True)
+
+    def _wgui_kill(self, quiet=False) -> int:
+        cmds = [
+            "tmux",
+            "kill-session",
+            "-t",
+            self._wgui_sessionname,
+        ]
+        subprocess.run(cmds, capture_output=True)
+    
+    def _print_wgui_output(self):
+        cmds = [
+            "tmux",
+            "capture-pane",
+            "-t",
+            self._wgui_sessionname+":0",
+            "-p"
+        ]
+        result = subprocess.run(cmds, capture_output=True)
+        if result.returncode == 0:
+            out = result.stdout.decode().split("\n")
+            out = [o for o in out if len(o) > 0]
+            out = [o for o in out if "Running on http" in o]
+            print("\n".join(out))
+        else:
+            print("failed to capture wgui output")
 
 
 def main():
