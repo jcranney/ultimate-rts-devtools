@@ -556,18 +556,18 @@ class CentroiderCLI():
                 self._wgui_start(quiet=quiet)
                 if self._wgui_status() == 0:
                     time.sleep(2.0)
-                    print("WGUI STARTED")
+                    print("wgui started successfully")
                     self._print_wgui_output()
                 else:
-                    print("WGUI FAILED TO START")
+                    print("wgui failed to start")
         elif args.action == "stop":
             self._wgui_kill(quiet=quiet)
         elif args.action == "status":
             if self._wgui_status(quiet=quiet) == 0:
-                print("WGUI ALIVE")
+                print("wgui alive")
                 self._print_wgui_output()
             else:
-                print("WGUI DEAD")
+                print("wgui dead")
         else:
             raise RuntimeError(
                 "This should be unreachable, how did you get here?"
@@ -602,7 +602,7 @@ class CentroiderCLI():
             self._wgui_sessionname,
         ]
         subprocess.run(cmds, capture_output=True)
-    
+
     def _print_wgui_output(self):
         cmds = [
             "tmux",
