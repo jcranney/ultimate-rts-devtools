@@ -9,11 +9,11 @@ import yaml
 from pyMilk.interfacing.fps import FPS
 from pyMilk.interfacing.shm import SHM
 from pydantic import BaseModel
-from milkcentroider.build_subap_lut import build_lut, plot_lut
-from milkcentroider.fit_subap_lut import fit_config, print_header, fine_tune
+from centroidertools.build_subap_lut import build_lut, plot_lut
+from centroidertools.fit_subap_lut import fit_config, print_header, fine_tune
 import numpy as np
-from milkcentroider.wgui import app
-from milkcentroider import reconstructor
+from centroidertools.wgui import app
+from centroidertools import reconstructor
 import time
 
 
@@ -89,6 +89,7 @@ class CentroiderCLI():
     # e.g., when NGS truth sensor is not used, we won't use 0)
     _config: None
     _default_configfile = os.environ["HOME"]+"/.config/centroider.yaml"
+    _verbosity: int = 0
 
     def __init__(self, *args, **kwargs):
         commands = []
@@ -102,7 +103,7 @@ class CentroiderCLI():
                 "cmd": attribute,
                 "doc": doc,
             })
-        usage = "centroider <command> [<args>]\n\nThe valid commands are:\n"
+        usage = "cent <command> [<args>]\n\nThe valid commands are:\n"
 
         usage += "\n".join([
             f"{command["cmd"]:>10s}     {command["doc"]:<s}"
@@ -110,43 +111,56 @@ class CentroiderCLI():
         ])
         parser = argparse.ArgumentParser(usage=usage)
         parser.add_argument("command", help="Subcommand to run")
-        args = parser.parse_args(sys.argv[1:2])
+        parser.add_argument("--verbose", "-v", action="count", default=0,
+                            help="verbosity level")
+
+        split_args = [[], []]
+        for i in range(len(sys.argv)):
+            tmp = sys.argv.pop(0)
+            if i == 0:
+                split_args[0].append(tmp)
+                split_args[1].append(tmp)
+                continue
+            if i == 1 or "-v" in tmp:
+                split_args[0].append(tmp)
+            else:
+                split_args[1].append(tmp)
+        args = parser.parse_args(split_args[0][1:])
+        self._verbosity = args.verbose
 
         if not hasattr(self, args.command):
-            print(f"Unrecognized centroider command: `{args.command}`")
+            print(f"Unrecognized cent command: `{args.command}`")
             parser.print_help()
             exit(1)
+        # prepare sys.argv for next round of commands
+        sys.argv = split_args[1]
 
         # use dispatch pattern to invoke method with same name
         getattr(self, args.command)()
 
-    def start(self, quiet=False):
+    def start(self):
         """Try to start the centroiders"""
 
         parser = argparse.ArgumentParser(
             description='start centroiders, using config on disk',
             usage=(
-                "   centroider start [-h] [--filename NAME]\n\n"
+                "   cent start [-h] [--filename NAME]\n\n"
                 "e.g.,\n"
-                "    centroider start\n"
-                "    centroider start --help\n"
-                "    centroider start --filename customconfig.yaml\n"
+                "    cent start\n"
+                "    cent start --help\n"
+                "    cent start --filename customconfig.yaml\n"
             )
         )
-        parser.add_argument(
-            "--filename", help="centroider configuration filename",
-            default=self._default_configfile
-        )
-
-        args = parser.parse_args(sys.argv[2:])
-        filename = os.path.abspath(args.filename)
+        args = self._standard_args(parser)
 
         fps_list = self._fps_list()
         if len(fps_list) == len(self._indices):
-            if not quiet:
+            if self._verbosity > 0:
                 print("all FPSs aleady exist, aborting (maybe `stop` first?)")
             exit(0)
-        self._config_load(filename, quiet=quiet)
+
+        filename = os.path.abspath(args.filename)
+        self._config_load(filename)
 
         # create centroider FPS
         for idx in self._indices:
@@ -159,7 +173,7 @@ class CentroiderCLI():
             # start tmux session and fpsinit
             result = subprocess.run(cmd, capture_output=True, cwd="/tmp/")
             warning_string = self._parse_launch_result(result)
-            if not quiet:
+            if self._verbosity > 0:
                 if result.returncode != 0:
                     print(f"failed to create {milk_loopname}")
                 if warning_string:
@@ -172,18 +186,29 @@ class CentroiderCLI():
                 fps.conf_start()
             while not fps.run_isrunning():
                 fps.run_start()
-            if not quiet:
+            if self._verbosity > 0:
                 print(f"started {fps.name}")
-        self._clean(quiet=True)
+        self._clean()
 
-    def stop(self, quiet=False):
+    def _standard_args(self, parser):
+        parser.add_argument(
+            "--filename", help="centroider configuration filename",
+            default=self._default_configfile
+        )
+        args = parser.parse_args(sys.argv[1:])
+        return args
+
+    def stop(self):
         """Try to stop the centroiders"""
+        self._stop()
+
+    def _stop(self):
         valid_fps = self._fps_list()
         if len(valid_fps) == 0:
-            if not quiet:
+            if self._verbosity > 0:
                 print("all centroiders stopped already")
         for fps in valid_fps:
-            if not quiet:
+            if self._verbosity > 0:
                 print(f"stopping {fps.name}")
             # stop run (if running)
             fps.run_stop()
@@ -202,7 +227,7 @@ class CentroiderCLI():
             pathname = os.path.abspath(os.path.join(dirname, filename))
             if pathname.startswith(dirname):
                 os.remove(pathname)
-        self._clean(quiet=True, cleanshm=True)
+        self._clean(cleanshm=True)
 
     @staticmethod
     def _parse_launch_result(result):
@@ -232,7 +257,7 @@ class CentroiderCLI():
                     pass
         return fps_list
 
-    def config(self, quiet=False):
+    def config(self):
         """load/save the centroider config from/to a file"""
         parser = argparse.ArgumentParser(
             description='configure centroiders',
@@ -241,53 +266,50 @@ class CentroiderCLI():
             "action", help="action to perform on configuration",
             choices=["load", "init", "edit", "plot", "fit"]
         )
-        parser.add_argument(
-            "--filename", help="path to config file (yaml)",
-            default=self._default_configfile
-        )
-        args = parser.parse_args(sys.argv[2:])
-        filename = os.path.abspath(args.filename)
+        args = self._standard_args(parser)
 
+        filename = os.path.abspath(args.filename)
         if args.action == "load":
-            self._config_load(filename, quiet=quiet)
+            self._config_load(filename)
         elif args.action == "init":
-            self._config_init(filename, quiet=quiet)
+            self._config_init(filename)
         elif args.action == "fit":
-            self._config_fit(filename, quiet=quiet)
+            self._config_fit(filename)
         elif args.action == "plot":
-            self._config_load(filename, quiet=quiet, apply=False)
-            self._config_plot(quiet=quiet)
+            self._config_load(filename, apply=False)
+            self._config_plot()
         elif args.action == "edit":
             editor = "nano"
             if "EDITOR" in os.environ:
                 editor = os.environ["EDITOR"]
             subprocess.run([editor, filename])
-            self._config_load(filename, quiet=quiet)
+            self._config_load(filename)
         else:
             raise RuntimeError(
                 "This should be unreachable, how did you get here?"
             )
 
-    def _config_load(self, filename, quiet=False, apply=True):
+    def _config_load(self, filename, apply=True):
         # Loading configs from file
         with open(filename, "r") as f:
             configs = yaml.safe_load(f)
-        if not quiet:
+        if self._verbosity > 0:
             print(f"reading configs from:\n{filename}")
 
         _configs = {}  # new config
         if len(configs.items()) == 0:
-            if not quiet:
+            if self._verbosity > 0:
                 print("no WFSs in config file, exiting.")
                 exit(1)
         for idx, config in configs.items():
-            print(f"loading config {idx}")
+            if self._verbosity > 0:
+                print(f"loading config {idx}")
             _configs[idx] = Config.from_dict(config)
         self._configs = _configs
         if apply:
-            self._config_apply(quiet=quiet)
+            self._config_apply()
 
-    def _config_init(self, filename, quiet=False):
+    def _config_init(self, filename):
         configs = {
             idx: {
                 "deltax": 0.0,
@@ -309,20 +331,20 @@ class CentroiderCLI():
             idx: Config.from_dict(config)
             for idx, config in configs.items()
         }
-        self._config_save(filename, configs=configs, quiet=quiet)
+        self._config_save(filename, configs=configs)
         # load the configs via disk to make sure everything is bulletproof
-        self._config_load(filename, quiet=quiet)
+        self._config_load(filename)
 
-    def _config_fit(self, filename, quiet=False, nframes=10):
+    def _config_fit(self, filename, nframes=10):
         # open config file to extract nsub* img* and any other non-fitted
         # params. Need to allow a reduced set of parameters defined in config,
         with open(filename, "r") as f:
             configs = yaml.safe_load(f)
         if not configs:
-            if not quiet:
+            if self._verbosity > 0:
                 print(f"empty config file: {filename}\nTry `config init`")
             exit(1)
-        if not quiet:
+        if self._verbosity > 0:
             print(f"reading configs from:\n{filename}")
 
         # These are the parameters required to be defined at minimum.
@@ -337,7 +359,7 @@ class CentroiderCLI():
         printed_header = False
         for idx in self._indices:
             if idx not in configs:
-                if not quiet:
+                if self._verbosity > 0:
                     print(f"wfs{idx:01d} missing from config: {filename}")
                 continue
             config = configs[idx]
@@ -345,13 +367,13 @@ class CentroiderCLI():
             for param in required_params:
                 if param in config:
                     continue
-                if not quiet:
+                if self._verbosity > 0:
                     print(
                         f"{param} not defined for wfs{idx:01d} in {filename}"
                     )
                 good = False
             if not good:
-                if not quiet:
+                if self._verbosity > 0:
                     print(f"can't fit config for wfs{idx:01d}")
                 continue
 
@@ -401,18 +423,18 @@ class CentroiderCLI():
         # replace entries of config with those fitted above, for the WFSs that
         # were fitted. Leave other entries in yaml file alone.
         # save config to disk
-        self._config_save(filename, configs=configs, quiet=quiet)
+        self._config_save(filename, configs=configs)
         # load config from disk and apply to shm
-        self._config_load(filename, quiet=quiet, apply=True)
+        self._config_load(filename, apply=True)
         for idx in self._indices:
             result = fine_tune(idx, nframes=nframes)
             if result is not None:
                 configs[idx].deltax += float(result[0])
                 configs[idx].deltay += float(result[1])
-        self._config_save(filename, configs=configs, quiet=quiet)
-        self._config_load(filename, quiet=quiet, apply=True)
+        self._config_save(filename, configs=configs)
+        self._config_load(filename, apply=True)
 
-    def _config_plot(self, configs=None, quiet=False):
+    def _config_plot(self, configs=None):
         """plot the configuration provided"""
         if not configs:
             if self._configs:
@@ -428,7 +450,7 @@ class CentroiderCLI():
                      title=f"WFS {idx}")
         plt.show()
 
-    def _config_apply(self, configs=None, quiet=False):
+    def _config_apply(self, configs=None):
         """apply config, either the provided one or the one in the object"""
         if configs is None:
             if self._configs:
@@ -456,7 +478,7 @@ class CentroiderCLI():
                 try:
                     fps = FPS(f"{self._fpsprefix:s}{idx:01d}")
                 except RuntimeError:
-                    if not quiet:
+                    if self._verbosity > 0:
                         print(f"FPS doesn't exist, skipping wfs{idx:01d}")
                     continue
                 running = fps.run_isrunning()
@@ -485,14 +507,14 @@ class CentroiderCLI():
             # could do other params here too, like bgnpix,
             # cogthresh, fluxthresh
 
-            if not quiet:
+            if self._verbosity > 0:
                 print(f"wrote lutx{idx:01d} and luty{idx:01d} to shm")
 
-    def _config_save(self, filename, configs=None, quiet=False):
+    def _config_save(self, filename, configs=None):
         if configs is None:
             configs = self._configs
         if configs is None:
-            if not quiet:
+            if self._verbosity > 0:
                 print("refusing to save empty config")
                 exit(1)
         # Saving current config
@@ -503,16 +525,16 @@ class CentroiderCLI():
                     for idx, config in configs.items()
                 }, f
             )
-        if not quiet:
+        if self._verbosity > 0:
             print(f"saved configs to:\n{filename}")
 
-    def _clean(self, quiet=False, cleanshm=False):
+    def _clean(self, cleanshm=False):
         """clean crumbs in shm dir. Shouldn't be necessary but it is"""
         from glob import glob
 
         def rm(files):
             for file in files:
-                if not quiet:
+                if self._verbosity > 0:
                     print(f"rm {file}")
                 os.remove(file)
 
@@ -538,7 +560,7 @@ class CentroiderCLI():
             print(f"    running: {fps.conf_isrunning()}")
             print(f"    confing: {fps.run_isrunning()}")
 
-    def wgui(self, quiet=False):
+    def wgui(self):
         """Launch centroider ui"""
         parser = argparse.ArgumentParser(
             description='start/stop web gui',
@@ -547,14 +569,14 @@ class CentroiderCLI():
             "action", help="view/change wgui status",
             choices=["start", "stop", "status"]
         )
-        args = parser.parse_args(sys.argv[2:])
+        args = self._standard_args(parser)
 
         if args.action == "start":
             if self._wgui_status() == 0:
                 print("wgui already running")
                 self._print_wgui_output()
             else:
-                self._wgui_start(quiet=quiet)
+                self._wgui_start()
                 if self._wgui_status() == 0:
                     time.sleep(2.0)
                     print("wgui started successfully")
@@ -562,9 +584,9 @@ class CentroiderCLI():
                 else:
                     print("wgui failed to start")
         elif args.action == "stop":
-            self._wgui_kill(quiet=quiet)
+            self._wgui_kill()
         elif args.action == "status":
-            if self._wgui_status(quiet=quiet) == 0:
+            if self._wgui_status() == 0:
                 print("wgui alive")
                 self._print_wgui_output()
             else:
@@ -574,7 +596,7 @@ class CentroiderCLI():
                 "This should be unreachable, how did you get here?"
             )
 
-    def _wgui_status(self, quiet=False) -> int:
+    def _wgui_status(self) -> int:
         cmds = [
             "tmux",
             "has-session",
@@ -584,7 +606,7 @@ class CentroiderCLI():
         result = subprocess.run(cmds, capture_output=True, cwd="/tmp/")
         return result.returncode
 
-    def _wgui_start(self, quiet=False):
+    def _wgui_start(self):
         cmds = [
             "tmux",
             "new-session",
@@ -595,7 +617,7 @@ class CentroiderCLI():
         ]
         subprocess.run(cmds, capture_output=True, cwd="/tmp/")
 
-    def _wgui_kill(self, quiet=False) -> int:
+    def _wgui_kill(self) -> int:
         cmds = [
             "tmux",
             "kill-session",
@@ -610,7 +632,11 @@ class CentroiderCLI():
             "capture-pane",
             "-t",
             self._wgui_sessionname+":0",
-            "-p"
+            "-p",
+            "-S",
+            "-",
+            "-E",
+            "-"
         ]
         result = subprocess.run(cmds, capture_output=True, cwd="/tmp/")
         if result.returncode == 0:
@@ -621,7 +647,7 @@ class CentroiderCLI():
         else:
             print("failed to capture wgui output")
 
-    def reconstruct(self):
+    def recon(self):
         """Run the local reconstructor for a while"""
         reconstructor.main()
 

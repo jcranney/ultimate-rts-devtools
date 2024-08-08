@@ -3,7 +3,7 @@
 import numpy as np
 from pyMilk.interfacing.fps import FPS
 from pyMilk.interfacing.shm import SHM
-from milkcentroider.build_subap_lut import build_lut
+from centroidertools.build_subap_lut import build_lut
 
 
 def print_header():
