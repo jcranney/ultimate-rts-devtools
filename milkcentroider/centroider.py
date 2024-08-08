@@ -13,6 +13,7 @@ from milkcentroider.build_subap_lut import build_lut, plot_lut
 from milkcentroider.fit_subap_lut import fit_config, print_header, fine_tune
 import numpy as np
 from milkcentroider.wgui import app
+from milkcentroider import reconstructor
 import time
 
 
@@ -156,7 +157,7 @@ class CentroiderCLI():
                         f"ltao.centroider _TMUXSTART_;")
             cmd = ["milk-exec", "-n", milk_loopname, milk_cmd]
             # start tmux session and fpsinit
-            result = subprocess.run(cmd, capture_output=True)
+            result = subprocess.run(cmd, capture_output=True, cwd="/tmp/")
             warning_string = self._parse_launch_result(result)
             if not quiet:
                 if result.returncode != 0:
@@ -194,7 +195,7 @@ class CentroiderCLI():
                 "kill-session",
                 "-t",
                 f"{fps.name}"
-            ], capture_output=True, check=False)
+            ], capture_output=True, check=False, cwd="/tmp/")
             # delete FPS
             dirname = os.environ["MILK_SHM_DIR"]
             filename = fps.name+".fps.shm"
@@ -580,7 +581,7 @@ class CentroiderCLI():
             "-t",
             self._wgui_sessionname
         ]
-        result = subprocess.run(cmds, capture_output=True)
+        result = subprocess.run(cmds, capture_output=True, cwd="/tmp/")
         return result.returncode
 
     def _wgui_start(self, quiet=False):
@@ -592,7 +593,7 @@ class CentroiderCLI():
             self._wgui_sessionname,
             f"python {app.__file__}",
         ]
-        subprocess.run(cmds, capture_output=True)
+        subprocess.run(cmds, capture_output=True, cwd="/tmp/")
 
     def _wgui_kill(self, quiet=False) -> int:
         cmds = [
@@ -601,7 +602,7 @@ class CentroiderCLI():
             "-t",
             self._wgui_sessionname,
         ]
-        subprocess.run(cmds, capture_output=True)
+        subprocess.run(cmds, capture_output=True, cwd="/tmp/")
 
     def _print_wgui_output(self):
         cmds = [
@@ -611,7 +612,7 @@ class CentroiderCLI():
             self._wgui_sessionname+":0",
             "-p"
         ]
-        result = subprocess.run(cmds, capture_output=True)
+        result = subprocess.run(cmds, capture_output=True, cwd="/tmp/")
         if result.returncode == 0:
             out = result.stdout.decode().split("\n")
             out = [o for o in out if len(o) > 0]
@@ -619,6 +620,10 @@ class CentroiderCLI():
             print("\n".join(out))
         else:
             print("failed to capture wgui output")
+
+    def reconstruct(self):
+        """Run the local reconstructor for a while"""
+        reconstructor.main()
 
 
 def main():

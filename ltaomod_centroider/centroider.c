@@ -178,13 +178,13 @@ static errno_t docentroids(
 						pixel = 0.0;
 					}
 				}
-				intensityx += pixel * iii;
-				intensityy += pixel * jjj;
+				intensityx += pixel * (iii - x_offset);
+				intensityy += pixel * (jjj - y_offset);
 				intensity += pixel;
 			}
 		}
-		slope_map[0].im->array.F[i] = intensityx/(intensity+1e-5) - x_offset;
-		slope_map[0].im->array.F[i+nsubx*nsuby] = intensityy/(intensity+1e-5) - y_offset;
+		slope_map[0].im->array.F[i] = intensityx/(intensity+1e-1);
+		slope_map[0].im->array.F[i+nsubx*nsuby] = intensityy/(intensity+1e-1);
 		flux_map[0].im->array.F[i] = intensity;
 	}
     

@@ -19,47 +19,85 @@ def index():
     return render_template('index.html')
 
 
-def gen(prefix="", suffix=""):
-    shms = None
+def get_shm_wrapper(shm_name):
     try:
-        shms = [SHM(f"{prefix}{i:01d}{suffix}") for i in range(5)]
+        shm = SHM(shm_name)
     except FileNotFoundError:
-        print(f"No stream with prefix `{prefix}` and suffix `{suffix}`")
-    if shms is None:
+        return None
+    return shm
+
+
+def read_stacked_shms(*, prefix="", suffix=""):
+    shms = []
+    blank_dims = None
+    for i in range(5):
+        # get as many shms as there are
+        shm = get_shm_wrapper(f"{prefix}{i:01d}{suffix}")
+        if shm:
+            shms += [shm]
+            if blank_dims is None:
+                blank_dims = shm.get_data().shape
+    if len(shms) == 0:
         yield False
-    else:
-        yield True
-        cmap = cm.turbo
-        norm = mpl.colors.Normalize()
-        while True:
-            ims = [shm.get_data() for shm in shms]
-            ims = [im-im.min() for im in ims]
-            ims = [im/im.max() for im in ims]
-            im = np.concatenate(ims, axis=1)
-            frame = Image.fromarray(np.uint8(cmap(norm(im))*255))
-            file = io.BytesIO()
-            frame.convert("RGB").save(file, format="png")
-            file.seek(0)
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/png\r\n\r\n' + file.read() + b'\r\n')
+        return
+    yield True
+    blank_xx = np.linspace(0, 4*np.pi, blank_dims[1])[None, :]
+    blank = np.cos(np.abs(blank_xx), dtype=np.float32)*np.ones(blank_dims)
+    cmap = cm.turbo
+    norm = mpl.colors.Normalize()
+    while True:
+        ims = [shm.get_data() if shm else blank for shm in shms]
+        ims = [im-im.min() for im in ims]
+        ims = [im/im.max() for im in ims]
+        im = np.concatenate(ims, axis=1)
+        frame = Image.fromarray(np.uint8(cmap(norm(im))*255))
+        file = io.BytesIO()
+        frame.convert("RGB").save(file, format="png")
+        file.seek(0)
+        yield (b'--frame\r\n'
+               b'Content-Type: image/png\r\n\r\n' + file.read() + b'\r\n')
+
+
+def read_single_shm(name):
+    shm = get_shm_wrapper(name)
+    if shm is None:
+        yield False
+        return
+    yield True
+    cmap = cm.turbo
+    norm = mpl.colors.Normalize()
+    while True:
+        im = shm.get_data()
+        im -= im.min()
+        im /= im.max()
+        frame = Image.fromarray(np.uint8(cmap(norm(im))*255))
+        file = io.BytesIO()
+        frame.convert("RGB").save(file, format="png")
+        file.seek(0)
+        yield (b'--frame\r\n'
+               b'Content-Type: image/png\r\n\r\n' + file.read() + b'\r\n')
 
 
 @app.route('/stream', methods=["GET"])
 def stream():
     prefix = request.args.get("prefix")
     suffix = request.args.get("suffix")
-    if prefix is None:
-        prefix = ""
-    if suffix is None:
-        suffix = ""
-    response = gen(prefix=prefix, suffix=suffix)
+    name = request.args.get("name")
+    if name is not None:
+        response = read_single_shm(name)
+    else:
+        if prefix is None:
+            prefix = ""
+        if suffix is None:
+            suffix = ""
+        response = read_stacked_shms(prefix=prefix, suffix=suffix)
     success = next(response)
     if success:
         return Response(
             response,
             mimetype='multipart/x-mixed-replace; boundary=frame'
         )
-    return f"shm stream: {prefix}N{suffix} not found"
+    return "shm stream not found"
 
 
 if __name__ == "__main__":
