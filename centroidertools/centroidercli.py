@@ -394,7 +394,7 @@ class CentroiderCLI():
                 fit.print_header()
                 printed_header = True
             # fit config params
-            deltax, deltay, theta, pitch_x, pitch_y = fit.fit_config(
+            deltax, deltay, _, pitch_x, pitch_y = fit.fit_config(
                 im, idx, n_subx=n_subx, n_suby=n_suby,
                 min_pitch=5.0, max_pitch=8.0
             )
@@ -404,7 +404,7 @@ class CentroiderCLI():
             config["pitch_y"] = pitch_y
             config["deltax"] = deltax
             config["deltay"] = deltay
-            config["theta"] = theta
+            # config["theta"] = theta
             config["img_w"] = img_w
             config["img_h"] = img_h
 
@@ -433,7 +433,7 @@ class CentroiderCLI():
                 configs[idx].deltay += float(result[1])
             thresh_mean, thresh_std = fit.estimate_thresh(idx, nframes=nframes)
             if result is not None:
-                configs[idx].thresh += thresh_mean
+                configs[idx].cogthresh += thresh_mean
                 print(thresh_mean, thresh_std)
         self._config_save(filename, configs=configs)
         self._config_load(filename, apply=True)
