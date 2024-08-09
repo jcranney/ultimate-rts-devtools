@@ -322,7 +322,7 @@ class CentroiderCLI():
                 "n_suby": 32,
                 "fov_x": 6,
                 "fov_y": 6,
-                "theta": np.pi*idx,
+                "theta": float(np.pi*idx),
                 "cogthresh": 0.0,
                 "bgnpix": 22,
             } for idx in self._indices
