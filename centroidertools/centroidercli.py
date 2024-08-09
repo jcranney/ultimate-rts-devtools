@@ -9,8 +9,8 @@ import yaml
 from pyMilk.interfacing.fps import FPS
 from pyMilk.interfacing.shm import SHM
 from pydantic import BaseModel
-from centroidertools.build_subap_lut import build_lut, plot_lut
-from centroidertools.fit_subap_lut import fit_config, print_header, fine_tune
+from centroidertools import build_subap_lut as bld
+from centroidertools import fit_subap_lut as fit
 import numpy as np
 from centroidertools.wgui import app
 from centroidertools import reconstructor
@@ -61,7 +61,7 @@ class Config(BaseModel):
         return self.__dict__
 
     def build_lut(self):
-        xx_c, yy_c, xx_0, yy_0 = build_lut(
+        xx_c, yy_c, xx_0, yy_0 = bld.build_lut(
             n_subx=self.n_subx, n_suby=self.n_suby,
             pitch_x=self.pitch_x, pitch_y=self.pitch_y, theta=self.theta,
             deltax=self.deltax, deltay=self.deltay,
@@ -322,7 +322,7 @@ class CentroiderCLI():
                 "n_suby": 32,
                 "fov_x": 6,
                 "fov_y": 6,
-                "theta": 0.0,
+                "theta": np.pi*idx,
                 "cogthresh": 0.0,
                 "bgnpix": 22,
             } for idx in self._indices
@@ -391,10 +391,10 @@ class CentroiderCLI():
             img_h, img_w = im.shape
 
             if not printed_header:
-                print_header()
+                fit.print_header()
                 printed_header = True
             # fit config params
-            deltax, deltay, theta, pitch_x, pitch_y = fit_config(
+            deltax, deltay, theta, pitch_x, pitch_y = fit.fit_config(
                 im, idx, n_subx=n_subx, n_suby=n_suby,
                 min_pitch=5.0, max_pitch=8.0
             )
@@ -427,10 +427,14 @@ class CentroiderCLI():
         # load config from disk and apply to shm
         self._config_load(filename, apply=True)
         for idx in self._indices:
-            result = fine_tune(idx, nframes=nframes)
+            result = fit.fine_tune(idx, nframes=nframes)
             if result is not None:
                 configs[idx].deltax += float(result[0])
                 configs[idx].deltay += float(result[1])
+            thresh_mean, thresh_std = fit.estimate_thresh(idx, nframes=nframes)
+            if result is not None:
+                configs[idx].thresh += thresh_mean
+                print(thresh_mean, thresh_std)
         self._config_save(filename, configs=configs)
         self._config_load(filename, apply=True)
 
@@ -444,10 +448,10 @@ class CentroiderCLI():
         import matplotlib.pyplot as plt
         for idx, config in configs.items():
             xx_c, yy_c, xx_0, yy_0 = config.build_lut()
-            plot_lut(img_w=config.img_w, img_h=config.img_h,
-                     fov_x=config.fov_x, fov_y=config.fov_y,
-                     xx_0=xx_0, yy_0=yy_0, xx_c=xx_c, yy_c=yy_c,
-                     title=f"WFS {idx}")
+            bld.plot_lut(img_w=config.img_w, img_h=config.img_h,
+                         fov_x=config.fov_x, fov_y=config.fov_y,
+                         xx_0=xx_0, yy_0=yy_0, xx_c=xx_c, yy_c=yy_c,
+                         title=f"WFS {idx}")
         plt.show()
 
     def _config_apply(self, configs=None):

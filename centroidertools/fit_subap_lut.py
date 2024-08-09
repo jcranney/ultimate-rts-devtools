@@ -149,3 +149,41 @@ def fine_tune(idx, quiet=False, flux_thresh=0.8, nframes=1):
     tt_x = slopemap.flatten()[good_subaps].mean()
     tt_y = slopemap.flatten()[good_subaps+fluxmap.flatten().shape[0]].mean()
     return tt_x, tt_y
+
+
+def estimate_thresh(idx, box_size=2, nframes=1):
+    fpsname = f"centroider{idx:01d}"
+    try:
+        fps = FPS(fpsname)
+    except RuntimeError:
+        print(f"{fpsname} doesn't exist, can't estimate thresh")
+        return None
+    if not fps.run_isrunning():
+        print(f"{fpsname} not running, can't estimate thresh")
+        return None
+
+    # fps exists and is running
+
+    fluxname = f"flux{idx:01d}"
+    try:
+        flux_shm = SHM(fluxname)
+    except RuntimeError:
+        print(f"{fluxname} shm doesn't exist, can't estimate thresh")
+        return None
+
+    # shm's exist
+
+    data = np.array([
+        flux_shm.get_data()
+        for _ in range(nframes)
+    ])
+    # data is (nframes,32,32)
+    # take corner boxes:
+    samples = np.concatenate([
+        data[:, :box_size, :box_size].flatten(),
+        data[:, -box_size:, :box_size].flatten(),
+        data[:, :box_size, -box_size:].flatten(),
+        data[:, -box_size:, -box_size:].flatten(),
+    ], axis=0)
+
+    return samples.mean(), samples.std()
