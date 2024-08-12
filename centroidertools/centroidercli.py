@@ -192,6 +192,7 @@ class CentroiderCLI():
         # centroiders have started, now we can kick off the slope gatherer:
         milk_loopname = "slopevec"
         milk_cmd = ("mload ltaomodcentroider;"
+                    "ltao.slopevec;"
                     "ltao.slopevec _FPSINIT_;"
                     "ltao.slopevec _TMUXSTART_;")
         cmd = ["milk-exec", "-n", milk_loopname, milk_cmd]
@@ -204,9 +205,11 @@ class CentroiderCLI():
             if warning_string:
                 print(warning_string)
                 print("")
+        
         try:
             fps = FPS(milk_loopname)
         except RuntimeError:
+            print("couldnt connect to slopevec whattha?")
             fps = None
         if fps:
             while not fps.conf_isrunning():
@@ -321,6 +324,10 @@ class CentroiderCLI():
             "action", help="action to perform on configuration",
             choices=["load", "init", "edit", "plot", "fit"]
         )
+        parser.add_argument(
+            "--nframes", "-n", type=int, default=10,
+            help="number of frames to use (e.g., for `cent config fit -n=10`)",
+        )
         args = self._standard_args(parser)
 
         filename = os.path.abspath(args.filename)
@@ -329,7 +336,7 @@ class CentroiderCLI():
         elif args.action == "init":
             self._config_init(filename)
         elif args.action == "fit":
-            self._config_fit(filename)
+            self._config_fit(filename, nframes=args.nframes)
         elif args.action == "plot":
             self._config_load(filename, apply=False)
             self._config_plot()
@@ -436,10 +443,9 @@ class CentroiderCLI():
             n_suby = config["n_suby"]
 
             # get wfs frame
+            shm = SHM(f"scmos{idx:01d}_data")
             im = np.mean([
-                SHM(f"scmos{idx:01d}_data")
-                .get_data(check=True)
-                .astype(np.float32)
+                shm.get_data(check=True).astype(np.float32)
                 for _ in range(nframes)
             ], axis=0)
             im -= SHM(f"scmos{idx:01d}_bg").get_data()
@@ -598,6 +604,7 @@ class CentroiderCLI():
                 os.remove(file)
 
         rm(glob(os.environ["MILK_SHM_DIR"] + "/milkCLIstartup.centroider*"))
+        rm(glob(os.environ["MILK_SHM_DIR"] + "/milkCLIstartup.slopevec*"))
         if cleanshm:
             rm(glob(os.environ["MILK_SHM_DIR"] + "/flux*.im.shm"))
             rm(glob(os.environ["MILK_SHM_DIR"] + "/lutx*.im.shm"))
@@ -605,6 +612,7 @@ class CentroiderCLI():
             rm(glob(os.environ["MILK_SHM_DIR"] + "/slopemap*.im.shm"))
             rm(glob(os.environ["MILK_SHM_DIR"] + "/slopevec.im.shm"))
             rm(glob(os.environ["MILK_SHM_DIR"] + "/proc.centroider*.shm"))
+            rm(glob(os.environ["MILK_SHM_DIR"] + "/proc.slopevec*.shm"))
             rm(glob(os.environ["MILK_SHM_DIR"] + "/processinfo.list.shm"))
 
     def status(self):

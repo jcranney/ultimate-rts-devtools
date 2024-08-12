@@ -16,7 +16,7 @@
 static uint32_t *wfs_flags; // binary mask for valid WFSs
 static uint32_t *nsubx;
 static uint32_t *nsuby;
-static float *deadline;
+static float *synctimeout;
 const uint32_t MAX_NWFS=5;
 
 
@@ -51,11 +51,11 @@ static CLICMDARGDEF farg[] =
     },
     {
         CLIARG_FLOAT32,
-        ".deadline",
-        "how long to wait (in microseconds) before posting whole slove vector if any inputs are late",
+        ".synctimeout",
+        "how long to wait (in microseconds) before posting whole slope vector if any inputs are late",
         "200", 
         CLIARG_HIDDEN_DEFAULT,
-        (void **) &deadline,
+        (void **) &synctimeout,
         NULL
     },
 };
@@ -82,7 +82,7 @@ static errno_t syncslopevec(
     uint32_t wfs_flags,  // index of wfs
     uint32_t nsubx,
     uint32_t nsuby,
-    uint32_t deadline
+    uint32_t synctimeout
 )
 {
     DEBUG_TRACE_FSTART();
@@ -123,14 +123,14 @@ static errno_t syncslopevec(
             gettimeofday(&now,NULL);
             uint32_t elapsed = ( (now.tv_sec - start.tv_sec)*1000000L + now.tv_usec - start.tv_usec);
             // if so, then send them anyway and reset ready_flags.
-            if (elapsed > deadline) {
+            if (elapsed > synctimeout) {
                 send = 1;
                 printf("timeout!\n");
                 break;
             }
         }
         // to be here means that either we haven't started, or we've started but
-        // not finished and the deadline hasn't passed yet.
+        // not finished and the synctimeout hasn't passed yet.
         int wfs_idx = 0;
         for (int i=0; i<MAX_NWFS; i++) {
             if (wfs_flags & (1 << i)) {
@@ -202,8 +202,8 @@ static errno_t compute_function()
     if(CLIcmddata.cmdsettings->flags & CLICMDFLAG_PROCINFO)
     {
         // procinfo is accessible here
-        CLIcmddata.cmdsettings->procinfo_loopcntMax = -1;
         CLIcmddata.cmdsettings->triggermode = 0;
+        CLIcmddata.cmdsettings->procinfo_loopcntMax = -1;
     }
 
     // If custom initialization with access to procinfo is not required
@@ -215,7 +215,7 @@ static errno_t compute_function()
 
     INSERT_STD_PROCINFO_COMPUTEFUNC_LOOPSTART
     {
-        syncslopevec(slope_maps, &slope_vec, *wfs_flags, *nsubx, *nsuby, *deadline);
+        syncslopevec(slope_maps, &slope_vec, *wfs_flags, *nsubx, *nsuby, *synctimeout);
         processinfo_update_output_stream(processinfo, slope_vec.ID);
     }
     INSERT_STD_PROCINFO_COMPUTEFUNC_END
