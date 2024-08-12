@@ -188,6 +188,34 @@ class CentroiderCLI():
                 fps.run_start()
             if self._verbosity > 0:
                 print(f"started {fps.name}")
+
+        # centroiders have started, now we can kick off the slope gatherer:
+        milk_loopname = "slopevec"
+        milk_cmd = ("mload ltaomodcentroider;"
+                    "ltao.slopevec _FPSINIT_;"
+                    "ltao.slopevec _TMUXSTART_;")
+        cmd = ["milk-exec", "-n", milk_loopname, milk_cmd]
+        # start tmux session and fpsinit
+        result = subprocess.run(cmd, capture_output=True, cwd="/tmp/")
+        warning_string = self._parse_launch_result(result)
+        if self._verbosity > 0:
+            if result.returncode != 0:
+                print(f"failed to create {milk_loopname}")
+            if warning_string:
+                print(warning_string)
+                print("")
+        try:
+            fps = FPS(milk_loopname)
+        except RuntimeError:
+            fps = None
+        if fps:
+            while not fps.conf_isrunning():
+                fps.conf_start()
+            while not fps.run_isrunning():
+                fps.run_start()
+            if self._verbosity > 0:
+                print(f"started {fps.name}")
+
         self._clean()
 
     def _standard_args(self, parser):
@@ -227,6 +255,33 @@ class CentroiderCLI():
             pathname = os.path.abspath(os.path.join(dirname, filename))
             if pathname.startswith(dirname):
                 os.remove(pathname)
+
+        with redirect_stdout():
+            try:
+                fps = FPS("slopevec")
+            except RuntimeError:
+                fps = None
+        if fps:
+            if self._verbosity > 0:
+                print(f"stopping {fps.name}")
+            # stop run (if running)
+            fps.run_stop()
+            # stop conf (if confing)
+            fps.conf_stop()
+            # close tmux (if tmuxing)
+            subprocess.run([
+                "tmux",
+                "kill-session",
+                "-t",
+                f"{fps.name}"
+            ], capture_output=True, check=False, cwd="/tmp/")
+            # delete FPS
+            dirname = os.environ["MILK_SHM_DIR"]
+            filename = fps.name+".fps.shm"
+            pathname = os.path.abspath(os.path.join(dirname, filename))
+            if pathname.startswith(dirname):
+                os.remove(pathname)
+
         self._clean(cleanshm=True)
 
     @staticmethod

@@ -236,82 +236,6 @@ static errno_t reducemeasurements(
     return RETURN_SUCCESS;
 }
 
-static errno_t try_collate(
-    IMGID *slope_map,  // local slope map
-    IMGID *slope_vec,  // global slope vector
-    uint32_t wfsnumber,  // index of wfs
-    uint32_t nsubx,
-    uint32_t nsuby
-)
-{
-    DEBUG_TRACE_FSTART();
-    // custom stream process function code
-
-
-    uint32_t offset;
-    switch (wfsnumber) {
-        case 1:
-            offset = (nsubx*nsuby*2)*0;
-            break;
-        case 2:
-            offset = (nsubx*nsuby*2)*1;
-            break;
-        case 3:
-            offset = (nsubx*nsuby*2)*2;
-            break;
-        case 4:
-            offset = (nsubx*nsuby*2)*3;
-            break;
-        default:
-            // this wfs is not used, skip
-            return RETURN_SUCCESS;
-    }
-
-    // resolve imgpos
-    resolveIMGID(slope_map, ERRMODE_ABORT);
-    imcreateIMGID(slope_vec);
-    slope_vec->md->write = 1;
-    
-    for (int i=0; i<nsubx*nsuby*2; i++){
-        slope_vec[0].im->array.F[i+offset] = slope_map[0].im->array.F[i];
-    }
-
-    ImageStreamIO_UpdateIm(slope_vec->im);
-    // leaving the synchronisation signal for discussion with Olivier + Yoshito
-    // but thinking about the logic - something like this could work:
-    /*
-    
-    imcreateIMGID(posted_slopes);
-    posted_slopes->md->write = 1;
-
-    posted_slopes[wfsnumber] += 1;
-
-    bool slopes_ready = true;
-    slopes_ready &= (posted_slopes[1] > 0)
-    slopes_ready &= (posted_slopes[2] > 0)
-    slopes_ready &= (posted_slopes[3] > 0)
-    slopes_ready &= (posted_slopes[4] > 0)
-
-    if slopes_ready {
-        posted_slopes[1] = 0;
-        posted_slopes[2] = 0;
-        posted_slopes[3] = 0;
-        posted_slopes[4] = 0;
-        // -- send them to RTS --
-    } else {
-
-    }
-
-
-    processinfo_update_output_stream(processinfo, posted_slopes.ID);
-    */
-
-    DEBUG_TRACE_FEXIT();
-    return RETURN_SUCCESS;
-}
-
-
-
 static errno_t compute_function()
 {
     DEBUG_TRACE_FSTART();
@@ -360,12 +284,6 @@ static errno_t compute_function()
         WRITE_IMAGENAME(name, "slopemap%01u", *wfsnumber);
         slope_map = stream_connect_create_2Df32(name, 32, 64);
     }
-    IMGID slope_vec;
-    {
-        char name[STRINGMAXLEN_STREAMNAME];
-        WRITE_IMAGENAME(name, "slopevec");
-        slope_vec = stream_connect_create_2Df32(name, 32*32*2*4, 1); // global slope vector
-    }
     list_image_ID();
 
     printf(" COMPUTE Flags = %ld\n", CLIcmddata.cmdsettings->flags);
@@ -398,7 +316,6 @@ static errno_t compute_function()
                     *thresh, *fovx, *fovy, *nsubx, *nsuby, *bgnpix);
         processinfo_update_output_stream(processinfo, flux_map.ID);
         processinfo_update_output_stream(processinfo, slope_map.ID);
-        try_collate(&slope_map, &slope_vec, *wfsnumber, *nsubx, *nsuby);
         reducemeasurements(&flux_map, &slope_map, *nsubx, *nsuby, *fluxthresh);
     }
     INSERT_STD_PROCINFO_COMPUTEFUNC_END

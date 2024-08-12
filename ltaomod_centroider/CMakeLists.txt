@@ -6,6 +6,7 @@ include_directories(/usr/local/milk-1.03.00/include)
 # list source files (.c) other than modulename.c
 set(SOURCEFILES
 	centroider.c
+	slopevec.c
 )
 
 # list include files (.h) that should be installed on system
