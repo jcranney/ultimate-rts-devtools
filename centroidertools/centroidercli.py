@@ -433,7 +433,7 @@ class CentroiderCLI():
                 configs[idx].deltay += float(result[1])
             thresh_mean, thresh_std = fit.estimate_thresh(idx, nframes=nframes)
             if result is not None:
-                configs[idx].cogthresh += thresh_mean
+                configs[idx].cogthresh += float(thresh_mean)
                 print(thresh_mean, thresh_std)
         self._config_save(filename, configs=configs)
         self._config_load(filename, apply=True)
