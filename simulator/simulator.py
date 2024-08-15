@@ -43,4 +43,4 @@ for i in pbar:
         # little.
         aosys.update_displays()
         if verbose:
-            pbar.set_description(f"wfe: {aosys.perf["wfe"].item():0.3f} rad")
+            pbar.set_description(f"wfe: {aosys.perf['wfe'].item():0.3f} rad")
