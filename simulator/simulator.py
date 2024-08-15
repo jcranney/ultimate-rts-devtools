@@ -11,7 +11,7 @@ parser.add_argument(
     help="which device to run simulator on, e.g., cpu, cuda:0, ..."
 )
 parser.add_argument(
-    "--nonblocking", "-n", action="store_true",
+    "--blocking", "-b", action="store_true",
     help="flag for running in non-blocking mode"
 )
 parser.add_argument(
@@ -20,9 +20,9 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-blocking_mode = True
-if args.nonblocking:
-    blocking_mode = False
+blocking_mode = False
+if args.blocking:
+    blocking_mode = True
 
 verbose = True
 if args.quiet:
