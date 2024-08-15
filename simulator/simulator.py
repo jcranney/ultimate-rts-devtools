@@ -28,7 +28,7 @@ verbose = True
 if args.quiet:
     verbose = False
 
-aosys = pyrao.aosystem.SubaruLTAO(verbose=verbose)
+aosys = pyrao.aosystem.SubaruLTAO(verbose=verbose, device=args.device)
 
 pbar = tqdm.tqdm(
     itertools.count(),

@@ -2,9 +2,10 @@
 This simulator is based on [pyrao](https://github.com/jcranney/pyrao), which is not yet on the Python Package Index (PyPI), though you should be able to install it via pip with:
 ```
 pip install maturin
-git clone https://github.com/jcranney/pyrao
-cd pyrao
+git clone https://github.com/jcranney/pyrao _pyrao
+cd _pyrao
 maturin develop --release
+pip install -e .
 cd ..
 ```
 This requires pip, [pyMilk](https://github.com/milk-org/pyMilk), and [cargo](https://rustup.rs/) to be installed.
