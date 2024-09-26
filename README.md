@@ -94,10 +94,9 @@ The control pipeline proposed for the reconstructor is:
 ```mermaid
 graph TD
 
-aqu[aquisition PC]--cl_slopes-->add
-AO3k
+aqu[aquisition PC]--cl_slopes-->add((sum))
 delay--applied_commands-->imat("D imat")
-add((+))--pol_slope_vec-->recon("R recon")
+add--pol_slope_vec-->recon("R recon")
 recon--"ol_modes"-->mfilt
 mfilt--command_modal-->dmproj("P dmproj")
 dmproj--command_dm-->delay
