@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import pyrao
 import argparse
 import itertools
@@ -28,21 +30,24 @@ verbose = True
 if args.quiet:
     verbose = False
 
-aosys = pyrao.aosystem.SubaruLTAO(verbose=verbose, device=args.device)
-
-pbar = tqdm.tqdm(
-    itertools.count(),
-    desc=f"wfe: {0:0.3f}",
-    disable=(not verbose)
+aosys = pyrao.aosystem.SubaruLTAO(
+    verbose=verbose,
+    device=args.device,
+    noise=True
 )
-for i in pbar:
-    aosys.step(blocking=blocking_mode)
-    if i % 10 == 0:
-        # update the residual wavefront every 10 frames, feel free to change
-        # this to be faster, but it might slow down your overall simulator a
-        # little.
-        aosys.update_displays()
-        if verbose:
-            pbar.set_description(
-                f"rmswfe: {aosys.perf['wfe'].item():0.3f}, sr: {100*aosys.perf['strehl']:0.1f}"
-            )
+
+if __name__ == "__main__":
+    pbar = tqdm.tqdm(
+        itertools.count(),
+        desc=f"wfe: {0:0.3f}",
+        disable=(not verbose)
+    )
+    for i in pbar:
+        aosys.step(blocking=blocking_mode)
+        if i % 10 == 0:
+            aosys.update_displays()
+            if verbose:
+                pbar.set_description(
+                    f"rmswfe: {aosys.perf['wfe'].item():0.3f}, "
+                    f"sr: {100*aosys.perf['strehl']:0.1f}"
+                )

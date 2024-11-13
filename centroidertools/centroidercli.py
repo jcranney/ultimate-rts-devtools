@@ -205,7 +205,7 @@ class CentroiderCLI():
             if warning_string:
                 print(warning_string)
                 print("")
-        
+
         try:
             fps = FPS(milk_loopname)
         except RuntimeError:

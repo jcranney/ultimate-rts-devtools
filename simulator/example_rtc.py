@@ -1,7 +1,6 @@
 import pyrao
 import argparse
 import itertools
-import tqdm
 from pydantic import BaseModel, ConfigDict
 import torch
 from pyMilk.interfacing.shm import SHM
@@ -121,7 +120,7 @@ class UltimateRTC(BaseModel):
         self.reset()
         for i in range(npurge):
             self.meas_shm.get_data(check=blocking)
-    
+
     def start(self, blocking=True):
         print("running")
         try:
@@ -130,7 +129,6 @@ class UltimateRTC(BaseModel):
         except KeyboardInterrupt:
             print("stopping")
             pass
-
 
 
 if __name__ == "__main__":
